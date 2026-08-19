@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bảng LED - Gọi số Trung tâm</title>
+<link rel="stylesheet" href="css/common.css" />
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+<style>
+  body { background: #0f172a; color: #fff; }
+  .led-wrap { padding: 30px; }
+  .led-header { text-align: center; margin-bottom: 30px; }
+  .led-header h1 { font-size: 2.2rem; margin-bottom: 4px; }
+  .led-clock { font-size: 1.3rem; color: #94a3b8; }
+  .led-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+  .led-card {
+    background: #1e293b; border-radius: 20px; padding: 26px; text-align: center;
+    border: 2px solid #334155;
+  }
+  .led-card.calling { border-color: #22c55e; box-shadow: 0 0 30px rgba(34,197,94,0.4); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 20px rgba(34,197,94,0.3);} 50% { box-shadow: 0 0 40px rgba(34,197,94,0.6);} }
+  .led-card .counter-name { color: #94a3b8; font-size: 1rem; margin-bottom: 10px; }
+  .led-card .ticket-num { font-size: 3.2rem; font-weight: 800; letter-spacing: 2px; }
+  .led-card .status-line { margin-top: 10px; font-size: 0.95rem; color: #cbd5e1; }
+  .btn-enable-audio {
+    position: fixed; bottom: 24px; left: 24px; z-index: 50;
+  }
+</style>
+</head>
+<body>
+<div class="led-wrap">
+  <div class="led-header">
+    <h1>🔊 TRUNG TÂM HÀNH CHÍNH CÔNG - BẢNG GỌI SỐ</h1>
+    <div id="ledClock" class="led-clock"></div>
+  </div>
+  <div id="ledGrid" class="led-grid"></div>
+</div>
+<button class="btn btn-primary btn-enable-audio" id="enableAudioBtn" onclick="enableAudio()">🔈 Bật âm thanh Loa PA</button>
+
+<script src="js/apiClient.js"></script>
+<script src="js/wsClient.js"></script>
+<script src="js/display.js"></script>
+<script src="js/header.js"></script>
+<script src="js/chatbot.js"></script>
+</body>
+</html>

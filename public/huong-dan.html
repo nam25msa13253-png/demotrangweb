@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hướng dẫn sử dụng - Một Cửa Thông Minh</title>
+<link rel="stylesheet" href="css/common.css" />
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+<style>
+  .page-hero { text-align: center; padding: 40px 20px 8px; }
+  .page-hero h1 { font-size: 1.9rem; margin-bottom: 8px; }
+  .page-hero p { color: var(--color-text-muted); max-width: 600px; margin: 0 auto; }
+  .step-list { display: flex; flex-direction: column; gap: 14px; margin-top: 24px; }
+  .step-item { display: flex; gap: 18px; align-items: flex-start; }
+  .step-num {
+    flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+    background: var(--color-primary); color: #fff; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+  }
+  .step-item h3 { margin: 4px 0 6px; font-size: 1.05rem; }
+  .step-item p { margin: 0; color: var(--color-text-muted); font-size: 0.92rem; }
+  .faq-item { border-bottom: 1px solid var(--color-border); padding: 16px 0; }
+  .faq-item:last-child { border-bottom: none; }
+  .faq-item summary { cursor: pointer; font-weight: 700; list-style: none; }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::before { content: '?'; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #eff6ff; color: var(--color-primary); font-size: 0.8rem; margin-right: 10px; }
+  .faq-item p { margin: 10px 0 0 32px; color: var(--color-text-muted); font-size: 0.92rem; }
+  .cta-box { text-align: center; padding: 36px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <section class="page-hero">
+    <h1>Hướng dẫn sử dụng</h1>
+    <p>5 bước đơn giản để hoàn tất thủ tục hành chính công mà không phải chờ đợi ngoài dự kiến.</p>
+  </section>
+
+  <div class="card mt-24">
+    <div class="step-list">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div>
+          <h3>Tra cứu thủ tục cần thực hiện</h3>
+          <p>Nhập tên thủ tục tại ô tìm kiếm ở Trang chủ (VD: "khai sinh", "sang tên đất đai") hoặc hỏi trực tiếp Trợ lý AI ở góc phải màn hình.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div>
+          <h3>Đối chiếu checklist giấy tờ</h3>
+          <p>Hệ thống hiển thị đầy đủ danh sách giấy tờ bắt buộc. Tích chọn những giấy tờ bạn đã chuẩn bị sẵn.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div>
+          <h3>Bổ sung nếu còn thiếu</h3>
+          <p>Nếu thiếu tờ khai hoặc giấy tờ, hệ thống chỉ dẫn chính xác vị trí kệ/khay lấy phôi và hiển thị mẫu tờ khai có chú thích ngay tại Kiosk.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div>
+          <h3>Lấy số thứ tự (STT)</h3>
+          <p>Khi hồ sơ đã đủ 100%, hệ thống tự động cấp số thứ tự và phân bổ vào quầy phù hợp có ít người chờ nhất.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">5</div>
+        <div>
+          <h3>Theo dõi & đến quầy khi được gọi</h3>
+          <p>Theo dõi số thứ tự qua Bảng LED hoặc lắng nghe loa thông báo. Nếu vắng mặt, bạn sẽ được gọi nhắc lại tối đa 2 lần trước khi số bị hủy.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-heading mt-24">
+    <div>
+      <div class="eyebrow">Câu hỏi thường gặp</div>
+      <h2>Giải đáp nhanh</h2>
+    </div>
+  </div>
+  <div class="card">
+    <details class="faq-item" open>
+      <summary>Tôi cần mang bản chính hay bản sao giấy tờ?</summary>
+      <p>Tuỳ thủ tục, checklist tại Kiosk sẽ ghi rõ giấy tờ nào cần bản chính để đối chiếu và giấy tờ nào chỉ cần bản sao. Vui lòng mang theo bản chính các giấy tờ quan trọng (CCCD, giấy chứng nhận...) để cán bộ đối chiếu tại quầy.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Nếu tôi vắng mặt khi được gọi số thì sao?</summary>
+      <p>Hệ thống sẽ tự động đưa số của bạn về cuối hàng đợi và gọi lại. Nếu vắng mặt liên tiếp 3 lần, số thứ tự sẽ tự động bị huỷ và bạn cần lấy số mới.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Tôi có thể theo dõi số thứ tự từ xa không?</summary>
+      <p>Có, bạn có thể xem Bảng LED trực tuyến hoặc để lại số điện thoại khi lấy số để nhận thông báo SMS/Zalo khi sắp đến lượt.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Tôi không chắc thủ tục của mình cần giấy tờ gì, phải làm sao?</summary>
+      <p>Hãy hỏi trực tiếp Trợ lý AI ở góc phải màn hình — trợ lý sẽ tra cứu và liệt kê đầy đủ giấy tờ, lệ phí, thời gian xử lý dựa trên dữ liệu chính thức của Trung tâm.</p>
+    </details>
+  </div>
+
+  <div class="card cta-box mt-24">
+    <h2>Sẵn sàng bắt đầu?</h2>
+    <p class="text-muted">Quay lại Trang chủ để tra cứu thủ tục và lấy số thứ tự.</p>
+    <a href="index.html" class="btn btn-primary btn-lg mt-16" style="display:inline-block;">Về Trang chủ</a>
+  </div>
+</div>
+
+<script src="js/header.js"></script>
+<script src="js/chatbot.js"></script>
+</body>
+</html>

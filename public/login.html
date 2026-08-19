@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dang nhap - He thong Mot cua</title>
+<link rel="stylesheet" href="css/common.css" />
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+<style>
+  .login-center { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .login-box { width: 380px; }
+  .login-box h1 { text-align: center; font-size: 1.4rem; margin-bottom: 4px; }
+  .login-box p.sub { text-align: center; color: var(--color-text-muted); margin-top: 0; margin-bottom: 24px; }
+  .hint { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 18px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <main class="login-center">
+    <div class="card login-box">
+      <h1>Đăng nhập Hệ thống</h1>
+      <p class="sub">Giao diện Cán bộ Quầy / Admin Control Tower</p>
+      <form id="loginForm">
+        <div class="field">
+          <label>Tên đăng nhập</label>
+          <input type="text" id="username" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label>Mật khẩu</label>
+          <input type="password" id="password" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Đăng nhập</button>
+      </form>
+      <div class="hint">
+        Tài khoản mẫu: <b>officer01</b> (Cán bộ), <b>supervisor01</b> (Điều phối),
+        <b>manager01</b> (Trưởng TT), <b>superadmin</b> (Super Admin).<br/>
+        Lưu ý: mật khẩu mẫu trong schema.sql cần được thay bằng bcrypt hash thật trước khi dùng.
+      </div>
+    </div>
+  </main>
+  <script src="js/apiClient.js"></script>
+  <script src="js/toast.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      try {
+        const result = await ApiClient.post('/api/auth/login', { username, password });
+        ApiClient.setSession(result.token, result.staff);
+        const role = result.staff.role;
+        if (role === 'OFFICER') window.location.href = 'counter.html';
+        else window.location.href = 'admin.html';
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  </script>
+</body>
+</html>

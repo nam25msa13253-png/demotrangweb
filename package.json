@@ -1,0 +1,21 @@
+{
+  "name": "smart-public-queue-system",
+  "version": "1.0.0",
+  "description": "He thong Hanh chinh cong Mot cua Thong minh - Smart Public Administrative Queue & Kiosk Dispatcher System",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:init": "node db/init.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@google/genai": "^2.17.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mysql2": "^3.11.0",
+    "ws": "^8.18.0"
+  }
+}

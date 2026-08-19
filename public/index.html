@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trang chủ - Hỗ trợ Tra cứu Thủ tục Hành chính</title>
+<link rel="stylesheet" href="css/common.css" />
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+<style>
+  .category-grid { margin-top: 8px; }
+  footer.site-footer { text-align: center; padding: 30px; color: var(--color-text-muted); font-size: 0.85rem; }
+  .empty-search { text-align: center; padding: 30px; color: var(--color-text-muted); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <section class="hero-banner">
+    <h1>Hỗ trợ Tra cứu &amp; Kiểm tra Hồ sơ Hành chính</h1>
+    <p>Hệ thống thông minh giúp bạn tra cứu nhanh chóng, chuẩn bị đầy đủ giấy tờ
+       và tiết kiệm thời gian khi thực hiện các thủ tục hành chính công.</p>
+
+    <form class="hero-search-row" id="searchForm">
+      <input id="searchInput" type="text" placeholder="Nhập tên thủ tục bạn muốn tìm kiếm (VD: Khai sinh, Đất đai...)" />
+      <button type="submit" class="btn btn-primary">Tra cứu →</button>
+    </form>
+
+    <div class="hero-stats" id="heroStats">
+      <div class="hero-stat"><div class="val" id="statOpenCounters">-</div><div class="lbl">Quầy đang mở</div></div>
+      <div class="hero-stat"><div class="val" id="statWaiting">-</div><div class="lbl">Người đang chờ</div></div>
+      <div class="hero-stat"><div class="val" id="statServices">-</div><div class="lbl">Thủ tục hỗ trợ</div></div>
+    </div>
+  </section>
+
+  <div class="section-heading">
+    <div>
+      <div class="eyebrow" id="categoryEyebrow">Danh mục nổi bật</div>
+      <h2 id="categoryTitle">Các thủ tục phổ biến</h2>
+      <p id="categorySub">Truy cập nhanh các thủ tục hành chính được thực hiện nhiều nhất.</p>
+    </div>
+    <a href="huong-dan.html" class="view-all">Xem hướng dẫn sử dụng →</a>
+  </div>
+  <div class="grid grid-4 category-grid" id="categoryGrid"></div>
+</div>
+
+<footer class="site-footer">
+  © Hệ thống Hỗ trợ Tra cứu Thủ tục Hành chính Công — Bấm biểu tượng 💬 góc phải để hỏi Trợ lý AI.
+</footer>
+
+<script>window.CHATBOT_AUTO_OPEN = true;</script>
+<script src="js/header.js"></script>
+<script src="js/chatbot.js"></script>
+<script>
+  function renderCategoryCards(services, opts) {
+    opts = opts || {};
+    const grid = document.getElementById('categoryGrid');
+    if (!services.length) {
+      grid.innerHTML = `<div class="empty-search" style="grid-column: 1 / -1;">Không tìm thấy thủ tục phù hợp. Vui lòng thử từ khóa khác hoặc hỏi Trợ lý AI.</div>`;
+      return;
+    }
+    grid.innerHTML = services.map((s) => `
+      <a href="kiosk.html?serviceId=${s.id}" class="card-link category-card">
+        <div class="card">
+          <h3>${s.name}</h3>
+          <p class="desc">${s.field_name} • SLA ${s.sla_minutes} phút</p>
+          <div class="meta">Xem giấy tờ cần chuẩn bị →</div>
+        </div>
+      </a>
+    `).join('');
+
+    if (opts.title) {
+      document.getElementById('categoryEyebrow').textContent = 'Kết quả tra cứu';
+      document.getElementById('categoryTitle').textContent = opts.title;
+      document.getElementById('categorySub').textContent = `Tìm thấy ${services.length} thủ tục phù hợp.`;
+    }
+  }
+
+  async function loadPopularServices() {
+    try {
+      const services = await fetch('/api/kiosk/services').then((r) => r.json());
+      renderCategoryCards(services.slice(0, 8));
+      document.getElementById('statServices').textContent = services.length;
+    } catch (e) { /* bo qua, giu placeholder */ }
+  }
+
+  async function performSearch(keyword) {
+    try {
+      const services = await fetch(`/api/kiosk/services?q=${encodeURIComponent(keyword)}`).then((r) => r.json());
+      renderCategoryCards(services, { title: `Kết quả cho "${keyword}"` });
+      document.getElementById('categoryGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) { /* bo qua */ }
+  }
+
+  document.getElementById('searchForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const keyword = document.getElementById('searchInput').value.trim();
+    if (keyword) performSearch(keyword); else loadPopularServices();
+  });
+
+  fetch('/api/kiosk/counters/status')
+    .then((r) => r.json())
+    .then((counters) => {
+      const open = counters.filter((c) => c.status === 'OPEN').length;
+      const waiting = counters.reduce((sum, c) => sum + Number(c.waiting_count || 0), 0);
+      document.getElementById('statOpenCounters').textContent = open;
+      document.getElementById('statWaiting').textContent = waiting;
+    })
+    .catch(() => {});
+
+  loadPopularServices();
+</script>
+</body>
+</html>

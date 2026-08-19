@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kiosk Tiếp nhận - Một cửa Thông minh</title>
+<link rel="stylesheet" href="css/common.css" />
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+<style>
+  body { font-size: 18px; }
+  .kiosk-wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+  .hero { text-align: center; margin-bottom: 28px; }
+  .hero h1 { font-size: 1.8rem; margin-bottom: 4px; }
+  .search-row { display: flex; gap: 12px; margin-bottom: 20px; }
+  .search-row input { flex: 1; font-size: 1.2rem; padding: 18px; }
+  .quick-actions { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center; }
+  .service-list { display: flex; flex-direction: column; gap: 10px; }
+  .service-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 18px 20px; background: #fff; border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card); cursor: pointer; border: 2px solid transparent;
+  }
+  .service-item:hover { border-color: var(--color-primary); }
+  .checklist-item { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 10px; background: #f8fafc; margin-bottom: 8px; }
+  .checklist-item input { width: auto; }
+  .ticket-hero { text-align: center; padding: 40px 20px; }
+  .ticket-number { font-size: 4.5rem; font-weight: 800; color: var(--color-primary); letter-spacing: 2px; }
+  .step-nav { display:flex; justify-content: space-between; margin-top: 20px; }
+  .missing-list { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px; margin: 14px 0; }
+  .location-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px; margin: 14px 0; }
+</style>
+</head>
+<body>
+<script>window.SHOW_HEADER_CLOCK = true;</script>
+
+<div class="kiosk-wrap">
+
+  <!-- ================= MAN HINH 0: TRANG CHU ================= -->
+  <section id="screen-home">
+    <div class="hero">
+      <h1>Xin chào Quý công dân 👋</h1>
+      <p class="text-muted">Vui lòng tìm thủ tục hành chính cần thực hiện</p>
+    </div>
+    <div class="search-row">
+      <input id="searchInput" type="text" placeholder="VD: sang tên sổ đỏ, khai sinh, đăng ký kinh doanh..." />
+      <button class="btn btn-primary" onclick="searchServices()">Tìm kiếm</button>
+    </div>
+    <div class="quick-actions">
+      <button class="btn btn-outline" onclick="openWifiModal()">📶 Kết nối Wi-Fi</button>
+      <button class="btn btn-outline" onclick="openDvcModal()">📱 Nộp trực tuyến (DVC)</button>
+      <button class="btn btn-outline" onclick="openReentryModal()">🔄 Quét mã Bổ sung hồ sơ</button>
+    </div>
+    <div id="serviceList" class="service-list"></div>
+  </section>
+
+  <!-- ================= MAN HINH 1: CHECKLIST / PRE-VALIDATION ================= -->
+  <section id="screen-checklist" class="hidden">
+    <div class="card">
+      <h2 id="checklistServiceName"></h2>
+      <p class="text-muted">Vui lòng đối chiếu và xác nhận các giấy tờ bạn đang có sẵn:</p>
+      <div id="checklistItems"></div>
+      <div id="checklistResult"></div>
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goHome()">← Quay lại</button>
+        <button class="btn btn-primary btn-lg" onclick="submitCheckGate()">Xác nhận & Lấy số thứ tự</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MAN HINH 2: KET QUA CAP VE ================= -->
+  <section id="screen-ticket" class="hidden">
+    <div class="card ticket-hero">
+      <p>Số thứ tự của bạn</p>
+      <div id="ticketNumber" class="ticket-number">A-101</div>
+      <p class="mt-16" id="ticketCounterName" style="font-size:1.3rem;font-weight:600;"></p>
+      <p class="text-muted">Vui lòng theo dõi Bảng LED và lắng nghe Loa thông báo</p>
+      <button class="btn btn-primary btn-lg mt-24" onclick="goHome()">Hoàn tất</button>
+    </div>
+  </section>
+</div>
+
+<!-- ================= MODAL: WIFI ================= -->
+<div id="wifiModal" class="modal-overlay hidden">
+  <div class="modal-box text-center">
+    <h2>📶 Kết nối Wi-Fi miễn phí</h2>
+    <p id="wifiInfo" class="text-muted"></p>
+    <button class="btn btn-outline mt-16" onclick="closeModal('wifiModal')">Đóng</button>
+  </div>
+</div>
+
+<!-- ================= MODAL: DVC / VNeID ================= -->
+<div id="dvcModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2>📱 Nộp hồ sơ trực tuyến (DVC)</h2>
+    <div class="field">
+      <label>Mức định danh VNeID hiện tại</label>
+      <select id="vneidLevel">
+        <option value="1">Mức 1</option>
+        <option value="2">Mức 2</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="checkVneid()">Kiểm tra điều kiện</button>
+    <div id="dvcResult" class="mt-16"></div>
+    <button class="btn btn-outline mt-16" onclick="closeModal('dvcModal')">Đóng</button>
+  </div>
+</div>
+
+<!-- ================= MODAL: RE-ENTRY QR ================= -->
+<div id="reentryModal" class="modal-overlay hidden">
+  <div class="modal-box text-center">
+    <h2>🔄 Quét mã QR Bổ sung hồ sơ</h2>
+    <p class="text-muted">Nhập/quét mã Re-entry được cấp khi cán bộ yêu cầu bổ sung giấy tờ</p>
+    <input id="reentryTokenInput" placeholder="Mã Re-entry Token" />
+    <button class="btn btn-primary mt-16" onclick="submitReentry()">Xác nhận đã bổ sung</button>
+    <button class="btn btn-outline mt-16" onclick="closeModal('reentryModal')">Đóng</button>
+  </div>
+</div>
+
+<!-- ================= MODAL: FORM TEMPLATE (Annotated Sample) ================= -->
+<div id="formTemplateModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2>📋 Hướng dẫn Bổ sung Hồ sơ</h2>
+    <div id="missingDocsBox"></div>
+    <div id="formLocationBox"></div>
+    <button class="btn btn-primary btn-block mt-16" onclick="closeModal('formTemplateModal'); showScreen('checklist')">Tôi đã chuẩn bị xong, Kiểm tra lại</button>
+  </div>
+</div>
+
+<script src="js/apiClient.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/kiosk.js"></script>
+<script src="js/header.js"></script>
+<script src="js/chatbot.js"></script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin Control Tower</title>
+<link rel="stylesheet" href="css/common.css" />
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+<style>
+  .tabs { display: flex; gap: 6px; margin-bottom: 20px; border-bottom: 1px solid var(--color-border); }
+  .tab-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 12px 20px; border: none; background: none; cursor: pointer;
+    font-size: 0.95rem; line-height: 1.4; white-space: nowrap;
+    font-weight: 600; color: var(--color-text-muted); border-bottom: 3px solid transparent;
+  }
+  .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .tab-emoji { font-weight: 400; font-family: 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
+  .metric-tile { text-align: center; }
+  .metric-tile .val { font-size: 2rem; font-weight: 800; color: var(--color-primary); }
+  .metric-tile .lbl { color: var(--color-text-muted); font-size: 0.85rem; margin-top: 4px; }
+  /* admin.html khong dung header.js (da bo o tren) nen topbar phai dinh o top:0,
+     khong con "site-header" 64px nao ben tren de nhuong cho no sticky xuong duoi nua -
+     neu de top:64px (mac dinh trong common.css cho cac trang co header.js) topbar se de
+     len tren hang tab, che mat chu. */
+  .topbar { top: 0; }
+  .counter-card-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 4px; }
+  .counter-card-head h3 { margin: 0; }
+  .counter-row { display:flex; flex-direction: column; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--color-border); }
+  .counter-row:last-child { border-bottom: none; }
+  .counter-row-top, .counter-row-bottom { display:flex; align-items:center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .counter-row-bottom select { width: auto; }
+  .new-counter-box {
+    background: #f8fafc; border: 1px solid var(--color-border); border-radius: 10px;
+    padding: 16px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .new-counter-box .field { margin-bottom: 0; }
+  .config-row { display:flex; align-items:center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--color-border); gap: 12px; }
+  .config-row input { max-width: 140px; }
+  .action-chip { padding: 6px 12px; font-size: 0.85rem; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>🛡️ Admin Control Tower</h1>
+  <div class="flex gap-16" style="align-items:center;">
+    <span id="staffName" class="text-muted"></span>
+    <button class="btn btn-outline" onclick="logout()">Đăng xuất</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="monitor" onclick="switchTab('monitor')"><span class="tab-emoji">📊</span><span>Giám sát Realtime</span></button>
+    <button class="tab-btn" data-tab="dispatch" onclick="switchTab('dispatch')"><span class="tab-emoji">🚦</span><span>Điều phối Khẩn cấp</span></button>
+    <button class="tab-btn" data-tab="config" onclick="switchTab('config')"><span class="tab-emoji">⚙️</span><span>Cấu hình Tham số</span></button>
+    <button class="tab-btn" data-tab="reports" onclick="switchTab('reports')"><span class="tab-emoji">📈</span><span>Báo cáo &amp; Audit</span></button>
+  </div>
+
+  <!-- ============ TAB: MONITOR ============ -->
+  <div id="tab-monitor" class="tab-content">
+    <div class="grid grid-4 mb-16" style="margin-bottom:18px;">
+      <div class="card metric-tile"><div class="val" id="mTotal">-</div><div class="lbl">Tổng lượt phục vụ hôm nay</div></div>
+      <div class="card metric-tile"><div class="val" id="mAwt">-</div><div class="lbl">AWT trung bình (phút)</div></div>
+      <div class="card metric-tile"><div class="val" id="mAht">-</div><div class="lbl">AHT trung bình (phút)</div></div>
+      <div class="card metric-tile"><div class="val" id="mNoShow">-</div><div class="lbl">Tỷ lệ No-Show (%)</div></div>
+    </div>
+    <div class="card">
+      <h3>Mặt bằng Nhiệt Hàng đợi (Queue Heatmap)</h3>
+      <div id="heatmapGrid" class="grid grid-4"></div>
+    </div>
+    <div class="card mt-16">
+      <h3>Trạng thái Quầy (Counter Status Matrix)</h3>
+      <div id="counterMatrix"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: DISPATCH ============ -->
+  <div id="tab-dispatch" class="tab-content hidden">
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="counter-card-head">
+          <h3>Quản lý Quầy linh hoạt</h3>
+          <button class="btn btn-primary action-chip" onclick="toggleNewCounterBox()">+ Thêm quầy mới</button>
+        </div>
+        <div id="newCounterBox" class="new-counter-box hidden">
+          <div class="field"><label>Mã quầy</label><input id="newCounterCode" placeholder="VD: QUAY-06" /></div>
+          <div class="field"><label>Tên quầy</label><input id="newCounterName" placeholder="VD: Quầy 06" /></div>
+          <div class="field"><label>Lĩnh vực phụ trách</label><select id="newCounterField"></select></div>
+          <div class="flex gap-8">
+            <button class="btn btn-primary" style="flex:1" onclick="submitCreateCounter()">Lưu quầy mới</button>
+            <button class="btn btn-outline" style="flex:1" onclick="toggleNewCounterBox(false)">Hủy</button>
+          </div>
+        </div>
+        <div id="dispatchCounterList"></div>
+      </div>
+      <div class="card">
+        <h3>San tải Cưỡng bức (Force Re-balance)</h3>
+        <div class="field"><label>Từ quầy</label><select id="rebalFrom"></select></div>
+        <div class="field"><label>Sang quầy</label><select id="rebalTo"></select></div>
+        <div class="field"><label>Tỷ lệ % số vé cuối hàng đợi cần chuyển</label><input type="number" id="rebalPercent" value="50" min="1" max="100" /></div>
+        <button class="btn btn-primary btn-block" onclick="submitRebalance()">San tải ngay</button>
+      </div>
+    </div>
+    <div class="grid grid-2 mt-16">
+      <div class="card">
+        <h3>Chèn Lượt Ưu tiên (VIP Injection)</h3>
+        <div class="field"><label>Thủ tục</label><select id="vipService"></select></div>
+        <div class="field"><label>Quầy (để trống = tự động chọn)</label><select id="vipCounter"><option value="">Tự động (Least Queue Depth)</option></select></div>
+        <div class="field"><label>Họ tên công dân</label><input id="vipName" /></div>
+        <div class="field"><label>Số điện thoại</label><input id="vipPhone" /></div>
+        <div class="field"><label>Lý do ưu tiên (bắt buộc)</label><select id="vipReason"></select></div>
+        <button class="btn btn-warning btn-block" onclick="submitPriorityInject()">Cấp vé Ưu tiên</button>
+      </div>
+      <div class="card">
+        <h3>Bỏ qua Lượt Khẩn cấp / Khôi phục Vé hủy nhầm</h3>
+        <div class="field"><label>Mã Ticket ID</label><input id="skipTicketId" placeholder="UUID của vé" /></div>
+        <div class="field"><label>Lý do (bắt buộc, sẽ ghi Audit Log)</label><input id="skipReason" /></div>
+        <div class="flex gap-12">
+          <button class="btn btn-danger" style="flex:1" onclick="submitEmergencySkip()">🚫 Emergency Skip</button>
+          <button class="btn btn-success" style="flex:1" onclick="submitRestore()">↩️ Khôi phục Vé</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: CONFIG ============ -->
+  <div id="tab-config" class="tab-content hidden">
+    <div class="card">
+      <h3>Bảng Tham số Cấu hình Hệ thống (Safe Limits Validation)</h3>
+      <div id="configList"></div>
+    </div>
+    <div class="card mt-16">
+      <h3>CSDL Tờ khai Mẫu & Kệ Phôi giấy</h3>
+      <div id="formTemplateList"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: REPORTS ============ -->
+  <div id="tab-reports" class="tab-content hidden">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>KPI Cán bộ Tiếp nhận</h3>
+        <table id="kpiTable"><thead><tr><th>Cán bộ</th><th>Hoàn tất</th><th>Bổ sung</th><th>AHT (phút)</th><th>Đúng SLA</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="card">
+        <h3>Chỉ số Chất lượng Dịch vụ theo Lĩnh vực</h3>
+        <table id="qualityTable"><thead><tr><th>Lĩnh vực</th><th>Tổng vé</th><th>No-Show (%)</th><th>AWT (phút)</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="card mt-16">
+      <h3>Peak Hour Analysis</h3>
+      <div id="peakHourChart" class="flex gap-8" style="align-items:flex-end; height:140px;"></div>
+    </div>
+    <div class="card mt-16">
+      <h3>Nhật ký Kiểm toán (Audit Trail) — Read-only</h3>
+      <table id="auditTable"><thead><tr><th>Thời gian</th><th>Admin</th><th>Hành động</th><th>Đối tượng</th><th>Lý do</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script src="js/apiClient.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/wsClient.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/chatbot.js"></script>
+</body>
+</html>
