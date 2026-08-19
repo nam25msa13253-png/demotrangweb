@@ -24,5 +24,12 @@ services:
         sync: false
       - key: DB_PASSWORD
         sync: false
+      # Aiven/PlanetScale/Railway... bat buoc SSL - de true neu dung MySQL managed ngoai.
+      - key: DB_SSL
+        value: "true"
+      # Tuy chon: dan noi dung file ca.pem (Aiven Overview > Connection Information)
+      # de verify chat CA thay vi chi ma hoa duong truyen. De trong van chay duoc.
+      - key: DB_SSL_CA
+        sync: false
       - key: GEMINI_API_KEY
         sync: false

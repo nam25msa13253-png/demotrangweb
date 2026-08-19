@@ -4,6 +4,11 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 
 async function main() {
+  const sslEnabled = String(process.env.DB_SSL || '').toLowerCase() === 'true';
+  const sslConfig = sslEnabled
+    ? { ca: process.env.DB_SSL_CA || undefined, rejectUnauthorized: !!process.env.DB_SSL_CA }
+    : undefined;
+
   // Khong chi dinh `database` o day vi schema.sql tu CREATE DATABASE + USE.
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
@@ -11,7 +16,8 @@ async function main() {
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     multipleStatements: true,
-    charset: 'utf8mb4' // bat buoc: mac dinh mysql2 khong dung utf8mb4 => seed data tieng Viet bi vo dau
+    charset: 'utf8mb4', // bat buoc: mac dinh mysql2 khong dung utf8mb4 => seed data tieng Viet bi vo dau
+    ssl: sslConfig
   });
 
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
