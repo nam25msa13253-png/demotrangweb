@@ -1,32 +1,35 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+const { Client } = require('pg');
 
 async function main() {
   const sslEnabled = String(process.env.DB_SSL || '').toLowerCase() === 'true';
-  const sslConfig = sslEnabled
-    ? { ca: process.env.DB_SSL_CA || undefined, rejectUnauthorized: !!process.env.DB_SSL_CA }
-    : undefined;
+  const sslConfig = sslEnabled ? { rejectUnauthorized: false } : false;
 
-  // Khong chi dinh `database` o day vi schema.sql tu CREATE DATABASE + USE.
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    multipleStatements: true,
-    charset: 'utf8mb4', // bat buoc: mac dinh mysql2 khong dung utf8mb4 => seed data tieng Viet bi vo dau
-    ssl: sslConfig
-  });
+  // Khac MySQL: Postgres (nhat la ban managed nhu Render/Railway/Aiven) da tao san 1
+  // database rieng cho ban, user thuong khong co quyen DROP/CREATE DATABASE - nen script
+  // nay chi chay CREATE TABLE/INSERT thang vao database da duoc cap (khong con DROP/CREATE
+  // DATABASE + USE nhu ban MySQL cu).
+  const client = process.env.DATABASE_URL
+    ? new Client({ connectionString: process.env.DATABASE_URL, ssl: sslConfig })
+    : new Client({
+        host: process.env.DB_HOST || 'localhost',
+        port: Number(process.env.DB_PORT || 5432),
+        database: process.env.DB_NAME || 'smart_queue',
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || '',
+        ssl: sslConfig
+      });
 
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+  await client.connect();
   try {
     console.log('Dang khoi tao schema...');
-    await connection.query(sql);
+    await client.query(sql);
     console.log('Khoi tao schema thanh cong.');
   } finally {
-    await connection.end();
+    await client.end();
   }
 }
 

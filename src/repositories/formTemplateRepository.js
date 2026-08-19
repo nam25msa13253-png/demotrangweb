@@ -25,12 +25,12 @@ async function upsert(client, { id, serviceId, formCode, formName, shelfName, tr
     );
     return findById(client, id);
   }
-  const { raw } = await client.query(
+  const { rows: inserted } = await client.query(
     `INSERT INTO form_templates (service_id, form_code, form_name, shelf_name, tray_number, desk_area, annotated_sample_url, qr_code_url)
-     VALUES (?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?) RETURNING id`,
     [serviceId, formCode, formName, shelfName, trayNumber, deskArea, annotatedSampleUrl, qrCodeUrl]
   );
-  return findById(client, raw.insertId);
+  return findById(client, inserted[0].id);
 }
 
 module.exports = { findByServiceId, findById, listAll, upsert };

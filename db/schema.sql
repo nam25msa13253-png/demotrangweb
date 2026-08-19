@@ -1,28 +1,38 @@
 -- =====================================================================================
 -- SMART PUBLIC ADMINISTRATIVE QUEUE & KIOSK DISPATCHER SYSTEM
--- Schema chuan hoa 3NF cho MySQL / MariaDB (da test tren MariaDB 10.4 - XAMPP)
--- Luu y: MariaDB 10.4 KHONG ho tro RETURNING / SKIP LOCKED / FILTER(WHERE..)
---        => id duoc sinh o phia ung dung (UUID), doc du lieu bang SELECT rieng sau INSERT/UPDATE.
+-- Schema chuan hoa 3NF cho PostgreSQL (dung cho Render Postgres managed hoac Postgres local).
 --
--- CANH BAO: File nay XOA SACH database `smart_queue` cu (neu co) roi tao lai tu dau.
--- An toan de dan nguyen file vao tab SQL cua phpMyAdmin bat ky luc nao muon lam sach du
--- lieu va chay lai tu dau - nhung se MAT toan bo du lieu dang co trong `smart_queue`.
+-- Luu y: ban nay thay the hoan toan ban MySQL/MariaDB cu (XAMPP) - du an da chuyen han
+-- sang Postgres de trien khai don gian tren Render (Postgres managed, wire tu dong qua
+-- render.yaml, khong can TCP Proxy/SSL thu cong nhu MySQL ngoai).
+--
+-- Khac MySQL: khong con DROP/CREATE DATABASE + USE o dau file - Postgres managed (Render/
+-- Railway/Aiven...) da cap san 1 database rieng, user ung dung thuong khong co quyen
+-- DROP/CREATE DATABASE. Chay thang script nay vao database da duoc cap la du.
 -- =====================================================================================
 
-DROP DATABASE IF EXISTS smart_queue;
-CREATE DATABASE smart_queue CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE smart_queue;
+-- ---------------------------------------------------------------------------
+-- Ham dung chung: tu dong cap nhat cot updated_at moi khi UPDATE 1 dong
+-- (thay the "ON UPDATE CURRENT_TIMESTAMP" cua MySQL - Postgres khong co san cu phap nay).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ---------------------------------------------------------------------------
 -- service_fields: linh vuc chuyen mon (Ho tich, Dat dai, ...)
 -- ---------------------------------------------------------------------------
 CREATE TABLE service_fields (
-  id            INT AUTO_INCREMENT PRIMARY KEY,
+  id            INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code          VARCHAR(20) NOT NULL UNIQUE,
   name          VARCHAR(120) NOT NULL,
   ticket_prefix CHAR(1) NOT NULL UNIQUE,
-  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---------------------------------------------------------------------------
 -- staff: tai khoan he thong (Admin + Can bo quay). RBAC theo role.
@@ -33,50 +43,50 @@ CREATE TABLE staff (
   full_name     VARCHAR(150) NOT NULL,
   username      VARCHAR(60) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role          ENUM('SUPER_ADMIN','MANAGER','SUPERVISOR','OFFICER') NOT NULL,
-  is_active     TINYINT(1) NOT NULL DEFAULT 1,
-  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+  role          VARCHAR(20) NOT NULL CHECK (role IN ('SUPER_ADMIN','MANAGER','SUPERVISOR','OFFICER')),
+  is_active     SMALLINT NOT NULL DEFAULT 1,
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---------------------------------------------------------------------------
 -- services: danh muc thu tuc hanh chinh
 -- ---------------------------------------------------------------------------
 CREATE TABLE services (
-  id                INT AUTO_INCREMENT PRIMARY KEY,
-  field_id          INT NOT NULL,
+  id                INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  field_id          INT NOT NULL REFERENCES service_fields(id),
   code              VARCHAR(30) NOT NULL UNIQUE,
   name              VARCHAR(255) NOT NULL,
   short_alias       VARCHAR(80),
   sla_minutes       INT NOT NULL DEFAULT 25,
   fee_amount        DECIMAL(12,2) NOT NULL DEFAULT 0,
-  required_docs     JSON NOT NULL,
-  is_active         TINYINT(1) NOT NULL DEFAULT 1,
-  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_services_field FOREIGN KEY (field_id) REFERENCES service_fields(id)
-) ENGINE=InnoDB;
+  required_docs     JSONB NOT NULL,
+  is_active         SMALLINT NOT NULL DEFAULT 1,
+  created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---------------------------------------------------------------------------
 -- counters: danh sach quay giao dich
 -- ---------------------------------------------------------------------------
 CREATE TABLE counters (
-  id               INT AUTO_INCREMENT PRIMARY KEY,
+  id               INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code             VARCHAR(20) NOT NULL UNIQUE,
   name             VARCHAR(100) NOT NULL,
-  field_id         INT NOT NULL,
-  officer_id       CHAR(36),
-  status           ENUM('OPEN','PAUSED','CLOSED') NOT NULL DEFAULT 'CLOSED',
+  field_id         INT NOT NULL REFERENCES service_fields(id),
+  officer_id       CHAR(36) REFERENCES staff(id),
+  status           VARCHAR(10) NOT NULL DEFAULT 'CLOSED' CHECK (status IN ('OPEN','PAUSED','CLOSED')),
   active_ticket_id CHAR(36),
-  updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_counters_field FOREIGN KEY (field_id) REFERENCES service_fields(id),
-  CONSTRAINT fk_counters_officer FOREIGN KEY (officer_id) REFERENCES staff(id)
-) ENGINE=InnoDB;
+  updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER trg_counters_updated_at BEFORE UPDATE ON counters
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ---------------------------------------------------------------------------
 -- form_templates: CSDL to khai mau & vi tri khay/ke phoi giay vat ly
 -- ---------------------------------------------------------------------------
 CREATE TABLE form_templates (
-  id                    INT AUTO_INCREMENT PRIMARY KEY,
-  service_id            INT NOT NULL,
+  id                    INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  service_id            INT NOT NULL REFERENCES services(id),
   form_code             VARCHAR(30) NOT NULL UNIQUE,
   form_name             VARCHAR(255) NOT NULL,
   shelf_name            VARCHAR(60) NOT NULL,
@@ -84,18 +94,17 @@ CREATE TABLE form_templates (
   desk_area             VARCHAR(60) NOT NULL,
   annotated_sample_url  VARCHAR(500),
   qr_code_url           VARCHAR(500),
-  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_form_service FOREIGN KEY (service_id) REFERENCES services(id)
-) ENGINE=InnoDB;
+  created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---------------------------------------------------------------------------
 -- priority_reasons: danh muc ly do uu tien CUNG (chong lam quyen chen VIP)
 -- ---------------------------------------------------------------------------
 CREATE TABLE priority_reasons (
-  id    INT AUTO_INCREMENT PRIMARY KEY,
+  id    INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code  VARCHAR(30) NOT NULL UNIQUE,
   label VARCHAR(150) NOT NULL
-) ENGINE=InnoDB;
+);
 
 INSERT INTO priority_reasons (code, label) VALUES
   ('ELDERLY_80', 'Người già trên 80 tuổi'),
@@ -109,28 +118,26 @@ INSERT INTO priority_reasons (code, label) VALUES
 CREATE TABLE tickets (
   id                 CHAR(36) PRIMARY KEY,
   ticket_number      VARCHAR(20) NOT NULL,
-  service_id         INT NOT NULL,
-  counter_id         INT,
+  service_id         INT NOT NULL REFERENCES services(id),
+  counter_id         INT REFERENCES counters(id),
   citizen_name       VARCHAR(150) NOT NULL,
   phone              VARCHAR(20),
-  status             ENUM('QUEUED','CALLING','PROCESSING','SUPP_PENDING','COMPLETED','CANCELLED','EXPIRED_EOD') NOT NULL DEFAULT 'QUEUED',
+  status             VARCHAR(20) NOT NULL DEFAULT 'QUEUED'
+                       CHECK (status IN ('QUEUED','CALLING','PROCESSING','SUPP_PENDING','COMPLETED','CANCELLED','EXPIRED_EOD')),
   retry_count        INT NOT NULL DEFAULT 0,
-  is_priority        TINYINT(1) NOT NULL DEFAULT 0,
-  priority_reason_id INT,
+  is_priority        SMALLINT NOT NULL DEFAULT 0,
+  priority_reason_id INT REFERENCES priority_reasons(id),
   queue_position     INT,
-  missing_doc_codes  JSON,
+  missing_doc_codes  JSONB,
   reentry_qr_token   VARCHAR(64) UNIQUE,
-  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  called_at          DATETIME,
-  processing_at      DATETIME,
-  completed_at       DATETIME,
-  cancelled_at       DATETIME,
+  created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  called_at          TIMESTAMP,
+  processing_at      TIMESTAMP,
+  completed_at       TIMESTAMP,
+  cancelled_at       TIMESTAMP,
   handling_duration_seconds INT,
-  sla_status         VARCHAR(10),
-  CONSTRAINT fk_tickets_service FOREIGN KEY (service_id) REFERENCES services(id),
-  CONSTRAINT fk_tickets_counter FOREIGN KEY (counter_id) REFERENCES counters(id),
-  CONSTRAINT fk_tickets_priority_reason FOREIGN KEY (priority_reason_id) REFERENCES priority_reasons(id)
-) ENGINE=InnoDB;
+  sla_status         VARCHAR(10)
+);
 
 ALTER TABLE counters
   ADD CONSTRAINT fk_counters_active_ticket
@@ -146,10 +153,12 @@ CREATE TABLE system_configs (
   min_bound     DECIMAL(10,2),
   max_bound     DECIMAL(10,2),
   description   VARCHAR(255),
-  updated_by    CHAR(36),
-  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_config_updated_by FOREIGN KEY (updated_by) REFERENCES staff(id)
-) ENGINE=InnoDB;
+  updated_by    CHAR(36) REFERENCES staff(id),
+  updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER trg_system_configs_updated_at BEFORE UPDATE ON system_configs
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 INSERT INTO system_configs (config_key, config_value, value_type, min_bound, max_bound, description) VALUES
   ('CALL_TIMEOUT_SECONDS', '45', 'NUMBER', 30, 120, 'Thời gian đếm ngược chờ công dân có mặt sau khi gọi số'),
@@ -167,52 +176,46 @@ INSERT INTO system_configs (config_key, config_value, value_type, min_bound, max
   ('TTS_VOLUME', '85', 'NUMBER', 0, 100, 'Âm lượng mặc định (%)');
 
 -- ---------------------------------------------------------------------------
--- audit_logs: Nhat Ky Kiem Toan - append-only (tang REVOKE nhu Postgres khong kha thi
--- tren MySQL/MariaDB o cap schema.sql vi phu thuoc user/GRANT rieng cua tung moi truong;
--- rang buoc "khong sua/xoa" duoc dam bao o tang ung dung: auditRepository.js chi co insertLog/listRecent).
+-- audit_logs: Nhat Ky Kiem Toan - append-only (rang buoc "khong sua/xoa" duoc dam bao
+-- o tang ung dung: auditRepository.js chi co insertLog/listRecent).
 -- ---------------------------------------------------------------------------
 CREATE TABLE audit_logs (
-  log_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
-  admin_id     CHAR(36),
+  log_id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  admin_id     CHAR(36) REFERENCES staff(id),
   action       VARCHAR(60) NOT NULL,
   target_type  VARCHAR(30) NOT NULL,
   target_id    VARCHAR(60),
   reason       VARCHAR(255),
-  payload      JSON,
-  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES staff(id)
-) ENGINE=InnoDB;
+  payload      JSONB,
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---------------------------------------------------------------------------
 -- ticket_status_history: System Log chi tiet cho tung buoc chuyen trang thai ve
 -- ---------------------------------------------------------------------------
 CREATE TABLE ticket_status_history (
-  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-  ticket_id   CHAR(36) NOT NULL,
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ticket_id   CHAR(36) NOT NULL REFERENCES tickets(id),
   from_status VARCHAR(20),
   to_status   VARCHAR(20) NOT NULL,
-  counter_id  INT,
-  officer_id  CHAR(36),
-  event_data  JSON,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_history_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id),
-  CONSTRAINT fk_history_counter FOREIGN KEY (counter_id) REFERENCES counters(id),
-  CONSTRAINT fk_history_officer FOREIGN KEY (officer_id) REFERENCES staff(id)
-) ENGINE=InnoDB;
+  counter_id  INT REFERENCES counters(id),
+  officer_id  CHAR(36) REFERENCES staff(id),
+  event_data  JSONB,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ---------------------------------------------------------------------------
 -- device_health: theo doi Kiosk / Loa PA / LED
 -- ---------------------------------------------------------------------------
 CREATE TABLE device_health (
-  id                INT AUTO_INCREMENT PRIMARY KEY,
-  device_type       ENUM('KIOSK','PA_SPEAKER','LED_BOARD') NOT NULL,
+  id                INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  device_type       VARCHAR(20) NOT NULL CHECK (device_type IN ('KIOSK','PA_SPEAKER','LED_BOARD')),
   device_code       VARCHAR(60) NOT NULL,
-  counter_id        INT,
-  status            ENUM('ONLINE','OFFLINE','DEGRADED') NOT NULL DEFAULT 'ONLINE',
-  last_heartbeat_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_device (device_type, device_code),
-  CONSTRAINT fk_device_counter FOREIGN KEY (counter_id) REFERENCES counters(id)
-) ENGINE=InnoDB;
+  counter_id        INT REFERENCES counters(id),
+  status            VARCHAR(20) NOT NULL DEFAULT 'ONLINE' CHECK (status IN ('ONLINE','OFFLINE','DEGRADED')),
+  last_heartbeat_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_device UNIQUE (device_type, device_code)
+);
 
 -- =====================================================================================
 -- INDEXES toi uu truy van hang doi realtime (theo counter_id + status la truy van nong nhat)
@@ -264,11 +267,13 @@ INSERT INTO form_templates (service_id, form_code, form_name, shelf_name, tray_n
   (3, 'TK-HKD-01', 'Tờ khai đăng ký hộ kinh doanh', 'Kệ C', 'Khay 1', 'Khu Bàn viết C', '/assets/samples/tk-hkd-01.png');
 
 -- Tai khoan mau (password cho tat ca: "changeme" - DOI MAT KHAU that truoc khi trien khai production)
+-- Postgres khong co san ham UUID() nhu MySQL (can extension pgcrypto/uuid-ossp) - dung
+-- literal UUID co dinh cho du du 4 tai khoan mau, tranh phu thuoc extension tren managed DB.
 INSERT INTO staff (id, full_name, username, password_hash, role) VALUES
-  (UUID(), 'Super Admin', 'superadmin', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPER_ADMIN'),
-  (UUID(), 'Trưởng Trung tâm', 'manager01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'MANAGER'),
-  (UUID(), 'Cán bộ Điều phối', 'supervisor01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPERVISOR'),
-  (UUID(), 'Cán bộ Quầy 01', 'officer01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'OFFICER');
+  ('11111111-1111-4111-8111-111111111111', 'Super Admin', 'superadmin', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPER_ADMIN'),
+  ('22222222-2222-4222-8222-222222222222', 'Trưởng Trung tâm', 'manager01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'MANAGER'),
+  ('33333333-3333-4333-8333-333333333333', 'Cán bộ Điều phối', 'supervisor01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPERVISOR'),
+  ('44444444-4444-4444-8444-444444444444', 'Cán bộ Quầy 01', 'officer01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'OFFICER');
 
 -- Gan Can bo Quay 01 phu trach QUAY-01 va mo quay san cho demo
 UPDATE counters SET officer_id = (SELECT id FROM staff WHERE username = 'officer01'), status = 'OPEN'

@@ -140,7 +140,7 @@ async function countTodayByField(client, fieldId) {
   const { rows } = await client.query(
     `SELECT COUNT(*) AS cnt FROM tickets t
      JOIN services s ON s.id = t.service_id
-     WHERE s.field_id = ? AND DATE(t.created_at) = CURDATE()`,
+     WHERE s.field_id = ? AND DATE(t.created_at) = CURRENT_DATE`,
     [fieldId]
   );
   return Number(rows[0].cnt);

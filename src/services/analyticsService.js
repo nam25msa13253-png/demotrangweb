@@ -1,21 +1,23 @@
 const { pool } = require('../config/db');
 const configService = require('../config/configService');
 
-// Luu y: MariaDB khong co FILTER(WHERE..) / EXTRACT(EPOCH..) nhu PostgreSQL, nen dung
-// AVG(CASE WHEN cond THEN val END) (bo qua NULL giong FILTER) va TIMESTAMPDIFF(SECOND,..).
+// Luu y: Postgres khong co CURDATE()/TIMESTAMPDIFF()/HOUR() kieu MySQL - dung CURRENT_DATE,
+// EXTRACT(EPOCH FROM (b - a)) de tinh so giay giua 2 timestamp, va EXTRACT(HOUR FROM col).
+// AVG(double precision) phai ep ::numeric truoc khi ROUND(x, n) vi Postgres chi cho ROUND
+// 2 tham so tren kieu numeric.
 
 // ---- Phan he 1: Master Dashboard - Chi so tong quan (Top Metrics) ----
 async function getTopMetrics() {
   const { rows } = await pool.query(`
     SELECT
-      SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS total_today,
-      ROUND(AVG(CASE WHEN DATE(created_at) = CURDATE() AND called_at IS NOT NULL
-                      THEN TIMESTAMPDIFF(SECOND, created_at, called_at) END) / 60.0, 1) AS awt_minutes,
-      ROUND(AVG(CASE WHEN DATE(created_at) = CURDATE() AND handling_duration_seconds IS NOT NULL
-                      THEN handling_duration_seconds END) / 60.0, 1) AS aht_minutes,
-      SUM(CASE WHEN DATE(created_at) = CURDATE() AND status = 'SUPP_PENDING' THEN 1 ELSE 0 END) AS supp_pending_today,
-      SUM(CASE WHEN DATE(created_at) = CURDATE() AND status = 'CANCELLED' THEN 1 ELSE 0 END) AS no_show_cancelled_today,
-      SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS denom_today
+      SUM(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 ELSE 0 END) AS total_today,
+      ROUND((AVG(CASE WHEN DATE(created_at) = CURRENT_DATE AND called_at IS NOT NULL
+                      THEN EXTRACT(EPOCH FROM (called_at - created_at)) END) / 60.0)::numeric, 1) AS awt_minutes,
+      ROUND((AVG(CASE WHEN DATE(created_at) = CURRENT_DATE AND handling_duration_seconds IS NOT NULL
+                      THEN handling_duration_seconds END) / 60.0)::numeric, 1) AS aht_minutes,
+      SUM(CASE WHEN DATE(created_at) = CURRENT_DATE AND status = 'SUPP_PENDING' THEN 1 ELSE 0 END) AS supp_pending_today,
+      SUM(CASE WHEN DATE(created_at) = CURRENT_DATE AND status = 'CANCELLED' THEN 1 ELSE 0 END) AS no_show_cancelled_today,
+      SUM(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 ELSE 0 END) AS denom_today
     FROM tickets
   `);
   const r = rows[0];
@@ -40,7 +42,7 @@ async function getHeatmap() {
   const { rows } = await pool.query(`
     SELECT c.id AS counter_id, c.code, c.name, c.status, sf.name AS field_name,
       SUM(CASE WHEN t.status = 'QUEUED' THEN 1 ELSE 0 END) AS waiting_count,
-      ROUND(AVG(CASE WHEN t.status = 'QUEUED' THEN TIMESTAMPDIFF(SECOND, t.created_at, NOW()) END) / 60.0, 1) AS avg_wait_minutes
+      ROUND((AVG(CASE WHEN t.status = 'QUEUED' THEN EXTRACT(EPOCH FROM (NOW() - t.created_at)) END) / 60.0)::numeric, 1) AS avg_wait_minutes
     FROM counters c
     JOIN service_fields sf ON sf.id = c.field_id
     LEFT JOIN tickets t ON t.counter_id = c.id AND t.status IN ('QUEUED','CALLING','PROCESSING')
@@ -84,10 +86,10 @@ async function getOfficerKpi() {
 // ---- Phan he 4: Peak Hour Analysis ----
 async function getPeakHourAnalysis() {
   const { rows } = await pool.query(`
-    SELECT HOUR(created_at) AS hour, COUNT(*) AS ticket_count
+    SELECT EXTRACT(HOUR FROM created_at) AS hour, COUNT(*) AS ticket_count
     FROM tickets
-    WHERE DATE(created_at) = CURDATE()
-    GROUP BY HOUR(created_at) ORDER BY hour ASC
+    WHERE DATE(created_at) = CURRENT_DATE
+    GROUP BY EXTRACT(HOUR FROM created_at) ORDER BY hour ASC
   `);
   return rows.map((r) => ({ hour: Number(r.hour), ticket_count: Number(r.ticket_count) }));
 }
@@ -98,12 +100,12 @@ async function getServiceQualityByField() {
     SELECT sf.name AS field_name,
       COUNT(t.id) AS total,
       SUM(CASE WHEN t.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_count,
-      ROUND(AVG(CASE WHEN t.called_at IS NOT NULL
-                      THEN TIMESTAMPDIFF(SECOND, t.created_at, t.called_at) END) / 60.0, 1) AS avg_awt_minutes
+      ROUND((AVG(CASE WHEN t.called_at IS NOT NULL
+                      THEN EXTRACT(EPOCH FROM (t.called_at - t.created_at)) END) / 60.0)::numeric, 1) AS avg_awt_minutes
     FROM tickets t
     JOIN services sv ON sv.id = t.service_id
     JOIN service_fields sf ON sf.id = sv.field_id
-    WHERE DATE(t.created_at) = CURDATE()
+    WHERE DATE(t.created_at) = CURRENT_DATE
     GROUP BY sf.name
   `);
   return rows.map((r) => {

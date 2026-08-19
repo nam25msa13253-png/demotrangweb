@@ -95,7 +95,7 @@ async function deleteCounter(counterId, adminId, reason) {
     try {
       await counterRepo.remove(client, counterId);
     } catch (err) {
-      if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.errno === 1451) {
+      if (err.code === '23503') { // foreign_key_violation (Postgres SQLSTATE)
         throw new Error('Quay nay da co lich su giao dich, khong the xoa de bao toan Audit Trail. Vui long chuyen trang thai sang "Dong" thay vi xoa.');
       }
       throw err;

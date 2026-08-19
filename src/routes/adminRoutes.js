@@ -59,7 +59,7 @@ router.post('/counters', requirePermission('DISPATCH'), async (req, res) => {
     const counter = await counterService.createCounter(String(code).trim().toUpperCase(), String(name).trim(), Number(fieldId), req.staff.staffId);
     res.status(201).json(counter);
   } catch (err) {
-    const message = (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) ? 'Ma quay da ton tai.' : err.message;
+    const message = (err.code === '23505') ? 'Ma quay da ton tai.' : err.message; // unique_violation (Postgres SQLSTATE)
     res.status(400).json({ error: message });
   }
 });
@@ -71,7 +71,7 @@ router.put('/counters/:id', requirePermission('DISPATCH'), async (req, res) => {
     const counter = await counterService.updateCounterDetails(Number(req.params.id), String(code).trim().toUpperCase(), String(name).trim(), req.staff.staffId);
     res.json(counter);
   } catch (err) {
-    const message = (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) ? 'Ma quay da ton tai.' : err.message;
+    const message = (err.code === '23505') ? 'Ma quay da ton tai.' : err.message; // unique_violation (Postgres SQLSTATE)
     res.status(400).json({ error: message });
   }
 });

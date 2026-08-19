@@ -5,8 +5,8 @@ Hệ thống production-grade tiếp nhận, tiền kiểm, điều phối hàng
 hành tại Trung tâm Hành chính công Một cửa, bám sát 100% tài liệu nghiệp vụ đã
 cung cấp (Admin, Bao quát, Chat bot, Hệ thống, Người dùng, Quầy).
 
-**Stack:** Node.js/Express + `ws` (WebSocket, cùng port với HTTP) + **MySQL/MariaDB**
-(`mysql2`, đã test thực tế trên **MariaDB 10.4.32 của XAMPP**) ở backend; HTML5/Vanilla
+**Stack:** Node.js/Express + `ws` (WebSocket, cùng port với HTTP) + **PostgreSQL**
+(`pg`, triển khai qua Postgres managed của Render) ở backend; HTML5/Vanilla
 CSS3/JavaScript ES6+ + Web Speech API ở frontend (không dùng framework FE, không build step).
 
 ---
@@ -16,17 +16,17 @@ CSS3/JavaScript ES6+ + Web Speech API ở frontend (không dùng framework FE, k
 ```
 smart-queue-system/
 ├── db/
-│   ├── schema.sql            # DDL 3NF đầy đủ cho MySQL/MariaDB + seed data mẫu
+│   ├── schema.sql            # DDL 3NF đầy đủ cho PostgreSQL + seed data mẫu
 │   └── init.js                # Script khởi tạo DB (npm run db:init)
 ├── src/
 │   ├── config/
-│   │   ├── db.js               # Pool mysql2 + withTransaction() (SELECT...FOR UPDATE)
+│   │   ├── db.js               # Pool pg + withTransaction() (SELECT...FOR UPDATE)
 │   │   └── configService.js    # Dynamic Policy Engine (đọc/ghi system_configs, Safe Limits)
 │   ├── middleware/
 │   │   └── auth.js             # authenticate() + requirePermission() theo Ma trận RBAC
 │   ├── utils/
-│   │   ├── uuid.js             # Sinh UUID phía ứng dụng (MariaDB 10.4 không tự sinh UUID)
-│   │   └── json.js             # Parse cột JSON (MariaDB trả JSON dạng chuỗi, không tự parse)
+│   │   ├── uuid.js             # Sinh UUID phía ứng dụng (crypto.randomUUID(), độc lập với DB)
+│   │   └── json.js             # Parse cột JSON (pg đã tự parse JSONB, hàm này chỉ phòng hờ)
 │   ├── repositories/           # Lớp truy vấn DB thuần (ticket/counter/service/audit/form)
 │   ├── services/
 │   │   ├── queueEngine.js      # LÕI: State Machine, Least Queue Depth, No-Show 3-Strike,
@@ -54,49 +54,50 @@ smart-queue-system/
 
 ---
 
-## 2. Cách dùng Database qua XAMPP (từng bước)
+## 2. Triển khai trên Render (Blueprint tự động)
 
-### Bước 1 — Bật MySQL trong XAMPP
+Repo đã kèm sẵn [`render.yaml`](render.yaml) khai báo cả web service Node lẫn 1 Postgres
+managed, tự wire `DATABASE_URL` giữa 2 bên — không cần tạo/điền tay bất kỳ connection string
+nào.
 
-Mở **XAMPP Control Panel** → bấm nút **Start** ở dòng `MySQL` (đèn chuyển xanh + hiện số port `3306`
-là đã chạy). Có thể bật bằng tay qua `C:\xampp\mysql_start.bat` nếu không dùng Control Panel.
+### Bước 1 — Tạo Blueprint
 
-Mặc định XAMPP dùng `host=localhost`, `port=3306`, `user=root`, `password=` (rỗng) — dự án này
-đã đặt sẵn các giá trị đó làm mặc định.
+1. Đăng nhập [render.com](https://render.com) → **New +** → **Blueprint**.
+2. Chọn repo GitHub của dự án. Render tự đọc `render.yaml`, hiện ra 2 resource: web service
+   `smart-queue-system` + Postgres `smart-queue-db` → bấm **Apply**.
 
-### Bước 2 — Tạo & xem database bằng phpMyAdmin (giao diện trực quan)
+### Bước 2 — Điền biến môi trường còn thiếu
 
-Bạn **không bắt buộc** phải thao tác tay ở đây (Bước 4 bên dưới sẽ tự tạo mọi thứ bằng lệnh
-`npm run db:init`), nhưng nếu muốn xem/kiểm tra database bằng giao diện:
+`DATABASE_URL` được tự động điền (Render tạo Postgres rồi wire connection string nội bộ vào
+thẳng web service, không qua mạng public nên không cần cấu hình SSL/TCP Proxy gì thêm). Bạn chỉ
+cần điền tay:
 
-1. Mở trình duyệt vào `http://localhost/phpmyadmin`.
-2. Sau khi chạy `npm run db:init` (Bước 4), database **`smart_queue`** sẽ xuất hiện ở cột bên trái
-   — bấm vào để xem toàn bộ bảng (`tickets`, `counters`, `services`, `system_configs`,
-   `audit_logs`...), xem/sửa dữ liệu trực tiếp bằng tay nếu cần.
-3. Muốn làm lại từ đầu (xoá sạch dữ liệu demo): mở tab **SQL** của phpMyAdmin
-   (`.../server_sql.php` hoặc menu SQL) → dán **toàn bộ nội dung file `db/schema.sql`** → bấm
-   **Go**. File này tự `DROP DATABASE IF EXISTS smart_queue` trước khi tạo lại, nên dán lại bao
-   nhiêu lần cũng được, không còn lỗi `#1050 - Table ... already exists` nữa.
-   ⚠️ Mỗi lần chạy lại sẽ **xoá sạch** dữ liệu đang có trong `smart_queue`.
+- `GEMINI_API_KEY` — lấy miễn phí tại <https://aistudio.google.com/apikey> (bỏ trống nếu chưa
+  cần Trợ lý AI, vẫn deploy được — xem mục 3).
 
-### Bước 3 — Cấu hình biến môi trường
+### Bước 3 — Khởi tạo schema
+
+Sau khi service deploy xong, chạy schema 1 lần (từ máy bạn, trỏ vào Postgres của Render — lấy
+`DATABASE_URL` ở tab **Environment** của service, hoặc trực tiếp ở tab **Connect** của Postgres
+instance trên Render Dashboard):
+
+```bash
+DATABASE_URL="<External Database URL từ Render>" node db/init.js
+```
+
+(Dùng **External Database URL**, không phải Internal, vì bạn đang chạy lệnh này từ máy cá nhân
+chứ không phải từ trong hạ tầng Render — External URL bắt buộc SSL, script đã tự bật SSL khi
+phát hiện `DATABASE_URL`.)
+
+### Chạy local (tuỳ chọn)
+
+Cần cài PostgreSQL riêng (XAMPP chỉ có MySQL, không dùng được cho bản này):
 
 ```bash
 cp .env.example .env
-# Neu XAMPP MySQL cua ban co dat mat khau root, sua DB_PASSWORD trong .env
-# Neu dung Tro ly AI (chatbot), dan API key vao GEMINI_API_KEY trong .env (xem muc 3)
-```
-
-### Bước 4 — Cài dependency & khởi tạo schema
-
-```bash
+# Dien DB_HOST/DB_USER/DB_PASSWORD/DB_NAME theo Postgres local cua ban trong .env
 npm install
-npm run db:init      # chay db/schema.sql: tu CREATE DATABASE smart_queue, tao bang, seed du lieu mau
-```
-
-### Bước 5 — Chạy server
-
-```bash
+npm run db:init      # chay db/schema.sql: tao bang + seed du lieu mau
 npm start             # hoặc: npm run dev (tự reload khi sửa code)
 ```
 
@@ -120,11 +121,6 @@ Server chạy tại `http://localhost:3000` (WebSocket dùng chung port qua `ws`
 | `officer01` | OFFICER (đã gán sẵn phụ trách QUAY-01, quầy này được mở sẵn) |
 
 ⚠️ Đổi mật khẩu thật (bcrypt hash mới) trước khi triển khai production — xem `db/schema.sql`.
-
-Toàn bộ luồng đã được **kiểm thử thực tế qua API** trên chính MariaDB 10.4 của XAMPP: tạo vé,
-Cổng Tiền kiểm (đủ/thiếu giấy tờ), Least Queue Depth, Gọi số → Tiếp nhận → Hoàn tất (tính đúng
-AHT/SLA), VIP Injection (chen đúng vị trí kế tiếp), No-Show/3-Strike, và toàn bộ báo cáo
-Heatmap/KPI/Peak Hour/Audit Log.
 
 ---
 
@@ -175,8 +171,8 @@ Heatmap/KPI/Peak Hour/Audit Log.
 - **Emergency Skip** & **Khôi phục vé hủy nhầm**: đều bắt buộc lý do + Audit Log.
 - **End-of-Day Batch Purge**: mỗi phút kiểm tra, đúng giờ cấu hình (`EOD_PURGE_HOUR`, mặc định
   17h) sẽ chuyển toàn bộ vé còn `QUEUED`/`CALLING` sang `EXPIRED_EOD`, đóng phiên làm việc.
-- **Race Condition**: mọi thao tác đổi trạng thái vé/quầy đều chạy trong 1 transaction MySQL
-  (InnoDB) dùng `SELECT ... FOR UPDATE` (xem `src/config/db.js` + `src/repositories/*`).
+- **Race Condition**: mọi thao tác đổi trạng thái vé/quầy đều chạy trong 1 transaction Postgres
+  dùng `SELECT ... FOR UPDATE` (xem `src/config/db.js` + `src/repositories/*`).
 
 Toàn bộ tham số nghiệp vụ (Call Timeout, Max Retry, Audio Gap, Undo Buffer, Max Ticket
 Lifetime, các ngưỡng cảnh báo Heatmap...) nằm trong bảng `system_configs` và chỉnh được
@@ -185,25 +181,41 @@ trực tiếp qua tab **"Cấu hình Tham số"** của Admin Dashboard — khô
 
 ---
 
-## 5. Ghi chú kỹ thuật riêng cho MySQL/MariaDB (XAMPP)
+## 5. Ghi chú kỹ thuật riêng cho PostgreSQL
 
-Bản backend này **viết riêng cho MySQL/MariaDB**, không phải cổng lại một cách máy móc từ
-PostgreSQL — vài điểm khác biệt quan trọng đã được xử lý:
+Dự án khởi đầu viết cho MySQL/MariaDB (XAMPP) rồi migrate toàn bộ sang PostgreSQL để triển
+khai đơn giản trên Render (Postgres managed, tự wire connection string, không cần host MySQL
+ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau migrate:
 
-- **Không có `RETURNING`** (MariaDB 10.4 chưa hỗ trợ, có từ 10.5): mọi INSERT/UPDATE trong
-  `src/repositories/*` đều SELECT lại theo `id` ngay sau đó để lấy bản ghi đầy đủ.
-- **UUID sinh ở tầng ứng dụng** (`src/utils/uuid.js`, dùng `crypto.randomUUID()`) thay vì
-  `gen_random_uuid()` của Postgres — vì MariaDB 10.4 chưa có kiểu UUID gốc.
-- **Không có `FILTER (WHERE ...)`**: `analyticsService.js` dùng `SUM(CASE WHEN ... THEN 1 ELSE 0 END)`
-  / `AVG(CASE WHEN ... THEN val END)` để đạt hiệu ứng tương đương.
-- **Không có `SKIP LOCKED`** (MariaDB có từ 10.6, XAMPP đang là 10.4): dùng `FOR UPDATE` thường —
-  vẫn đảm bảo đúng transaction/khoá dòng, chỉ khác là giao dịch đồng thời sẽ **chờ** thay vì bỏ qua.
-- **Cột JSON của MariaDB thực chất là `LONGTEXT` + ràng buộc kiểm tra**, không phải kiểu JSON nhị
-  phân như Postgres `JSONB` → driver `mysql2` **không tự parse**. `src/utils/json.js` xử lý việc
-  này ở tầng repository (`required_docs`, `missing_doc_codes`, `payload` audit log...).
-
-Nếu sau này nâng cấp lên MariaDB 10.6+/MySQL 8, có thể thêm `SKIP LOCKED` vào các câu
-`FOR UPDATE` trong `ticketRepository.js` để tối ưu thêm dưới tải cao, nhưng không bắt buộc.
+- **Placeholder `?` được tự dịch sang `$1, $2, ...`** ngay trong `src/config/db.js`
+  (`toPgPlaceholders`), nên toàn bộ câu SQL trong `src/repositories/*` giữ nguyên cú pháp `?`
+  quen thuộc thay vì phải sửa lại từng chỗ.
+- **UUID sinh ở tầng ứng dụng** (`src/utils/uuid.js`, dùng `crypto.randomUUID()`), không phụ
+  thuộc `gen_random_uuid()` của Postgres hay extension `pgcrypto` nào.
+- **`ENUM` của MySQL → `VARCHAR + CHECK constraint`** trong `db/schema.sql` (Postgres không hỗ
+  trợ khai báo ENUM ngay trong định nghĩa cột như MySQL).
+- **`TINYINT(1)` cờ boolean → `SMALLINT`** (không dùng kiểu `BOOLEAN` gốc của Postgres) để giữ
+  nguyên các so sánh `= 1` sẵn có trong `serviceRepository.js`/`authService.js`.
+- **`ON UPDATE CURRENT_TIMESTAMP` → trigger `set_updated_at()`**: Postgres không có cú pháp này
+  tại chỗ khai báo cột, nên `counters.updated_at` và `system_configs.updated_at` dùng trigger
+  `BEFORE UPDATE` (định nghĩa đầu `db/schema.sql`).
+- **Cột JSON → `JSONB`**: khác MySQL (lưu JSON dạng `LONGTEXT`, phải tự `JSON.parse`), driver
+  `pg` tự parse `JSONB` thành object/array — `src/utils/json.js` vẫn giữ lại như một lớp phòng
+  hờ (không gây lỗi nếu giá trị đã là object sẵn).
+- **Lỗi trùng khoá/khoá ngoại** nhận diện qua SQLSTATE của Postgres thay vì mã lỗi MySQL:
+  `23505` (unique_violation, xem `adminRoutes.js`) và `23503` (foreign_key_violation, xem
+  `counterService.js`) — khác hẳn `ER_DUP_ENTRY`/`ER_ROW_IS_REFERENCED_2` của MySQL.
+- **`LIKE` → `ILIKE`** trong `serviceRepository.searchServices` để giữ tìm kiếm không phân biệt
+  hoa/thường (MySQL mặc định không phân biệt nhờ collation `utf8mb4_unicode_ci`; Postgres `LIKE`
+  thường thì có phân biệt).
+- **`CURDATE()`/`HOUR()`/`TIMESTAMPDIFF()` (MySQL) → `CURRENT_DATE`/`EXTRACT(HOUR FROM ...)`/
+  `EXTRACT(EPOCH FROM (b - a))`** trong `analyticsService.js` + `ticketRepository.js`. Vì
+  `EXTRACT(EPOCH...)` trả `double precision`, các chỗ `ROUND(x, 1)` liên quan được ép thêm
+  `::numeric` (Postgres chỉ cho `ROUND` 2 tham số trên kiểu `numeric`).
+- **`RETURNING`/`SKIP LOCKED`**: Postgres hỗ trợ đầy đủ cả hai, nhưng code vẫn giữ thói quen
+  SELECT lại theo `id` sau INSERT/UPDATE (trừ 1 chỗ dùng `RETURNING id` ở
+  `formTemplateRepository.upsert`, thay cho `raw.insertId` kiểu mysql2 không tồn tại ở `pg`) và
+  `FOR UPDATE` thường (chưa dùng `SKIP LOCKED`) để tối thiểu hoá thay đổi khi migrate.
 
 ---
 

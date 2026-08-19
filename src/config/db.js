@@ -1,33 +1,38 @@
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 
-// Cac host MySQL quan ly (Aiven, PlanetScale, Railway...) thuong bat buoc SSL/TLS.
-// DB_SSL=true de bat; neu co DB_SSL_CA (noi dung file ca.pem) thi verify chat (rejectUnauthorized:true),
-// neu khong co CA thi van ma hoa duong truyen nhung bo qua verify chain (du dung cho demo/hoc tap).
+// Chuyen placeholder kieu MySQL (?) sang kieu Postgres ($1, $2, ...) de toan bo
+// repositories/services giu nguyen cach viet SQL cu, khong phai sua tung cau.
+function toPgPlaceholders(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+// Render Blueprint (render.yaml) tu wire DATABASE_URL khi khai bao `fromDatabase` cho
+// Postgres managed - uu tien dung thang connection string nay neu co. Fallback sang cac
+// bien DB_HOST/DB_PORT/... rieng le cho moi truong khac (Railway, Aiven, Postgres local...).
+const connectionString = process.env.DATABASE_URL;
 const sslEnabled = String(process.env.DB_SSL || '').toLowerCase() === 'true';
-const sslConfig = sslEnabled
-  ? { ca: process.env.DB_SSL_CA || undefined, rejectUnauthorized: !!process.env.DB_SSL_CA }
-  : undefined;
+const sslConfig = sslEnabled ? { rejectUnauthorized: false } : false;
 
-const rawPool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  database: process.env.DB_NAME || 'smart_queue',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  waitForConnections: true,
-  connectionLimit: 20,
-  decimalNumbers: true, // tra ve DECIMAL nhu number thay vi string (fee_amount, min_bound...)
-  charset: 'utf8mb4', // bat buoc: mac dinh mysql2 khong dung utf8mb4 => chu co dau bi vo thanh '?'
-  ssl: sslConfig
-});
+const rawPool = connectionString
+  ? new Pool({ connectionString, ssl: sslConfig })
+  : new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT || 5432),
+      database: process.env.DB_NAME || 'smart_queue',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || '',
+      ssl: sslConfig
+    });
 
-// Adapter: bao mysql2 (tra ve [rows, fields]) thanh dang { rows } giong pg,
-// de repositories/services dung chung 1 cach goi `const { rows } = await client.query(sql, params)`.
+// Adapter: chuan hoa ket qua ve dang { rows } (pg tra thang { rows, rowCount, ... } roi,
+// nhung van giu wrapper de repositories/services dung chung 1 cach goi
+// `const { rows } = await client.query(sql, params)` bat ke driver ben duoi la gi).
 function wrapQueryable(executor) {
   return {
     query: async (sql, params) => {
-      const [result] = await executor.query(sql, params);
-      return { rows: Array.isArray(result) ? result : [], raw: result };
+      const result = await executor.query(toPgPlaceholders(sql), params);
+      return { rows: result.rows || [], raw: result };
     }
   };
 }
@@ -37,15 +42,15 @@ const pool = wrapQueryable(rawPool);
 // Chay 1 khoi lenh trong 1 transaction, tu dong ROLLBACK neu loi.
 // Dung cho moi thao tac thay doi trang thai ve de trach Race Condition (SELECT ... FOR UPDATE).
 async function withTransaction(fn) {
-  const conn = await rawPool.getConnection();
+  const conn = await rawPool.connect();
   try {
-    await conn.beginTransaction();
+    await conn.query('BEGIN');
     const client = wrapQueryable(conn);
     const result = await fn(client);
-    await conn.commit();
+    await conn.query('COMMIT');
     return result;
   } catch (err) {
-    await conn.rollback();
+    await conn.query('ROLLBACK');
     throw err;
   } finally {
     conn.release();

@@ -29,13 +29,14 @@ async function findServiceById(client, serviceId) {
   return mapService(rows[0]);
 }
 
-// MySQL/MariaDB: collation mac dinh (vd utf8mb4_unicode_ci) da khong phan biet hoa/thuong,
-// nen dung LIKE thuong (tuong duong ILIKE cua PostgreSQL).
+// ILIKE (khong phan biet hoa/thuong) de giu nguyen trai nghiem tim kiem nhu ban MySQL cu
+// (collation utf8mb4_unicode_ci mac dinh khong phan biet hoa/thuong) - Postgres LIKE thuong
+// thi co phan biet hoa/thuong.
 async function searchServices(client, keyword) {
   const { rows } = await client.query(
     `SELECT s.*, sf.name AS field_name, sf.code AS field_code FROM services s
      JOIN service_fields sf ON sf.id = s.field_id
-     WHERE s.is_active = 1 AND (s.name LIKE ? OR s.short_alias LIKE ? OR s.code LIKE ?)
+     WHERE s.is_active = 1 AND (s.name ILIKE ? OR s.short_alias ILIKE ? OR s.code ILIKE ?)
      ORDER BY s.name ASC LIMIT 20`,
     [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]
   );
