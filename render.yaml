@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: smart-queue-system
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      # DB MySQL/MariaDB ngoai (Render khong co MySQL managed - dung Railway/Aiven/
+      # PlanetScale... roi dien thong tin ket noi vao day tren Render Dashboard).
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: 3306
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

@@ -43,7 +43,8 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 wsHub.init(server); // WebSocket tich hop chung port voi HTTP server
 
-const PORT = process.env.SERVER_PORT || 3000;
+// Render (va cac PaaS khac) tu gan cong qua bien PORT - phai uu tien no truoc SERVER_PORT.
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 
 configService.loadAll()
   .then(() => {
