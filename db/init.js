@@ -4,7 +4,15 @@ const path = require('path');
 const { Client } = require('pg');
 
 async function main() {
-  const sslEnabled = String(process.env.DB_SSL || '').toLowerCase() === 'true';
+  // DATABASE_URL (connection string day du) hau nhu luon tro toi Postgres managed ngoai
+  // (Render External URL, Railway, Aiven, Neon, Supabase...) - cac host nay BAT BUOC SSL,
+  // nen mac dinh BAT SSL khi co DATABASE_URL (tru khi ep DB_SSL=false). Nguoc lai, khi dung
+  // cac bien DB_HOST/... roi (thuong la Postgres local/XAMPP-style) thi mac dinh TAT SSL
+  // (tru khi ep DB_SSL=true). Thieu buoc nay se bi ECONNRESET vi server tu ngat ket noi
+  // khong ma hoa.
+  const sslEnabled = process.env.DATABASE_URL
+    ? String(process.env.DB_SSL || '').toLowerCase() !== 'false'
+    : String(process.env.DB_SSL || '').toLowerCase() === 'true';
   const sslConfig = sslEnabled ? { rejectUnauthorized: false } : false;
 
   // Khac MySQL: Postgres (nhat la ban managed nhu Render/Railway/Aiven) da tao san 1
