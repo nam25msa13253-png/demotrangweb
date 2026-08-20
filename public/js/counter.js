@@ -28,7 +28,7 @@ async function init() {
     select.addEventListener('change', () => { setCounter(Number(select.value)); });
     setCounter(Number(select.value));
   } else {
-    const own = allCounters.find((c) => c.officer_id === staff.staffId);
+    const own = allCounters.find((c) => c.officer_id === staff.id);
     if (!own) {
       document.querySelector('.container').innerHTML = '<div class="card text-center">Bạn chưa được phân công phụ trách quầy nào. Vui lòng liên hệ Admin.</div>';
       return;
