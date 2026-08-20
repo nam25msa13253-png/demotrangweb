@@ -59,6 +59,18 @@ async function setActiveTicket(client, counterId, ticketId) {
   return findById(client, counterId);
 }
 
+// Gan can bo phu trach quay. Mot can bo chi phu trach 1 quay tai 1 thoi diem nen phai go
+// can bo do khoi cac quay khac truoc khi gan vao quay moi (tranh 1 tai khoan dung dong thoi
+// nhieu quay).
+async function clearOfficerFromOtherCounters(client, officerId, exceptCounterId) {
+  await client.query('UPDATE counters SET officer_id = NULL WHERE officer_id = ? AND id != ?', [officerId, exceptCounterId]);
+}
+
+async function updateOfficer(client, counterId, officerId) {
+  await client.query('UPDATE counters SET officer_id = ? WHERE id = ?', [officerId, counterId]);
+  return findById(client, counterId);
+}
+
 // Them quay moi (moi phuong/xa co so luong quay khac nhau nen can linh hoat tao/sua/xoa
 // thay vi co dinh 5 quay nhu seed data mau).
 async function create(client, { code, name, fieldId }) {
@@ -81,5 +93,6 @@ async function remove(client, counterId) {
 
 module.exports = {
   listAll, findById, lockById, listOpenByField, findLeastLoadedByField,
-  updateStatus, updateField, setActiveTicket, create, updateDetails, remove
+  updateStatus, updateField, setActiveTicket, create, updateDetails, remove,
+  clearOfficerFromOtherCounters, updateOfficer
 };

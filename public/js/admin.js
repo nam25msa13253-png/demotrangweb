@@ -61,19 +61,23 @@ async function loadMonitor() {
 // =============================== TAB: DISPATCH ===============================
 let dispatchFieldsCache = [];
 
+let dispatchOfficersCache = [];
+
 async function loadDispatch() {
   try {
     // /api/kiosk/services tra ve TAT CA thu tuc dang hoat dong trong he thong (khong gioi han
     // so luong) - dropdown VIP Injection ben duoi vi vay luon liet ke day du tat ca thu tuc.
-    const [counters, fields, services, reasons] = await Promise.all([
+    const [counters, fields, services, reasons, officers] = await Promise.all([
       ApiClient.get('/api/admin/counters'),
       ApiClient.get('/api/admin/fields'),
       ApiClient.get('/api/kiosk/services'),
-      ApiClient.get('/api/admin/priority-reasons')
+      ApiClient.get('/api/admin/priority-reasons'),
+      ApiClient.get('/api/admin/officers')
     ]);
     dispatchFieldsCache = fields;
+    dispatchOfficersCache = officers;
 
-    renderDispatchCounters(counters, fields);
+    renderDispatchCounters(counters, fields, officers);
     document.getElementById('newCounterField').innerHTML = fields.map((f) => `<option value="${f.id}">${f.name}</option>`).join('');
 
     const counterOptions = counters.map((c) => `<option value="${c.id}">${c.code} - ${c.name}</option>`).join('');
@@ -86,7 +90,7 @@ async function loadDispatch() {
   } catch (err) { showToast(err.message, 'error'); }
 }
 
-function counterRowHtml(c, fields) {
+function counterRowHtml(c, fields, officers) {
   return `
     <div class="counter-row" id="counter-row-${c.id}">
       <div class="counter-row-top">
@@ -110,11 +114,18 @@ function counterRowHtml(c, fields) {
           <button class="btn btn-danger action-chip" onclick="deleteCounter(${c.id})">🗑️ Xóa</button>
         </div>
       </div>
+      <div class="counter-row-bottom">
+        <select onchange="changeCounterOfficer(${c.id}, this.value)">
+          <option value="">-- Chưa gán cán bộ --</option>
+          ${officers.map((o) => `<option value="${o.id}" ${o.id === c.officer_id ? 'selected' : ''}>${o.full_name} (${o.username})${o.is_active ? '' : ' — đã khóa'}</option>`).join('')}
+        </select>
+        <span class="text-muted" style="font-size:0.85rem;">${c.officer_name ? `Đang phụ trách: ${c.officer_name}` : 'Chưa gán tài khoản Officer'}</span>
+      </div>
     </div>`;
 }
 
-function renderDispatchCounters(counters, fields) {
-  document.getElementById('dispatchCounterList').innerHTML = counters.map((c) => counterRowHtml(c, fields)).join('');
+function renderDispatchCounters(counters, fields, officers) {
+  document.getElementById('dispatchCounterList').innerHTML = counters.map((c) => counterRowHtml(c, fields, officers)).join('');
 }
 
 function editCounter(counterId, code, name) {
@@ -176,6 +187,13 @@ async function changeCounterField(counterId, fieldId) {
   if (!fieldId) return;
   try { await ApiClient.post(`/api/admin/counters/${counterId}/field`, { fieldId, reason: 'Doi linh vuc tu Admin Dashboard' }); showToast('Đã đổi lĩnh vực chuyên trách.', 'success'); loadDispatch(); }
   catch (err) { showToast(err.message, 'error'); }
+}
+async function changeCounterOfficer(counterId, officerId) {
+  try {
+    await ApiClient.post(`/api/admin/counters/${counterId}/officer`, { officerId: officerId || null, reason: 'Gan/Go can bo tu Admin Dashboard' });
+    showToast(officerId ? 'Đã gán cán bộ phụ trách quầy.' : 'Đã gỡ cán bộ khỏi quầy.', 'success');
+    loadDispatch();
+  } catch (err) { showToast(err.message, 'error'); loadDispatch(); }
 }
 async function submitRebalance() {
   const fromCounterId = document.getElementById('rebalFrom').value;
@@ -294,6 +312,7 @@ async function loadStaffTab() {
           <b>${s.full_name}</b> <span class="text-muted">(${s.username})</span>
           <span class="badge badge-blue">${ROLE_LABELS[s.role] || s.role}</span>
           <span class="badge ${s.is_active ? 'badge-green' : 'badge-gray'}">${s.is_active ? 'Đang hoạt động' : 'Đã khóa'}</span>
+          ${s.role === 'OFFICER' ? (s.counter_code ? `<span class="badge badge-yellow">Quầy ${s.counter_code}</span>` : '<span class="text-muted" style="font-size:0.85rem;">Chưa gán quầy — vào tab Điều phối để gán</span>') : ''}
         </div>
         <div class="flex gap-8">
           <button class="btn btn-outline action-chip" onclick="resetStaffPassword('${s.id}')">🔑 Đặt lại mật khẩu</button>

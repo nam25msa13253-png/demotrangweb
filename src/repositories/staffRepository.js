@@ -1,7 +1,13 @@
 // Truy van CSDL cho bang staff. Khong tra password_hash o cac ham list/read cong khai qua API.
+// LEFT JOIN counters de tab Quan ly Tai khoan hien thi luon quay dang gan cho tung Officer -
+// tranh phai nhay sang tab Dieu phoi moi biet tai khoan nao dang phu trach quay nao.
 async function listAll(client) {
   const { rows } = await client.query(
-    `SELECT id, full_name, username, role, is_active, created_at FROM staff ORDER BY created_at DESC`
+    `SELECT s.id, s.full_name, s.username, s.role, s.is_active, s.created_at,
+            c.code AS counter_code, c.name AS counter_name
+     FROM staff s
+     LEFT JOIN counters c ON c.officer_id = s.id
+     ORDER BY s.created_at DESC`
   );
   return rows;
 }
@@ -9,6 +15,16 @@ async function listAll(client) {
 async function findById(client, id) {
   const { rows } = await client.query('SELECT * FROM staff WHERE id = ?', [id]);
   return rows[0] || null;
+}
+
+// Danh sach rut gon (khong password_hash) theo vai tro - dung cho dropdown gan can bo vao
+// quay o tab Dieu phoi (DISPATCH), pham vi quyen hep hon so voi STAFF_MANAGEMENT day du.
+async function listByRole(client, role) {
+  const { rows } = await client.query(
+    `SELECT id, full_name, username, is_active FROM staff WHERE role = ? ORDER BY full_name ASC`,
+    [role]
+  );
+  return rows;
 }
 
 async function findByUsername(client, username) {
@@ -39,4 +55,4 @@ async function updatePassword(client, id, passwordHash) {
   await client.query('UPDATE staff SET password_hash = ? WHERE id = ?', [passwordHash, id]);
 }
 
-module.exports = { listAll, findById, findByUsername, create, updateActive, updatePassword };
+module.exports = { listAll, findById, findByUsername, listByRole, create, updateActive, updatePassword };

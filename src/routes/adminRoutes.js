@@ -8,6 +8,7 @@ const counterService = require('../services/counterService');
 const queueEngine = require('../services/queueEngine');
 const analyticsService = require('../services/analyticsService');
 const staffService = require('../services/staffService');
+const staffRepo = require('../repositories/staffRepository');
 const wsHub = require('../websocket/wsHub');
 const { authenticate, requirePermission } = require('../middleware/auth');
 
@@ -21,6 +22,12 @@ router.get('/counters', requirePermission('MONITOR'), async (req, res) => {
 
 router.get('/fields', requirePermission('MONITOR'), async (req, res) => {
   res.json(await serviceRepo.listFields(pool));
+});
+
+// Danh sach Officer (rut gon) de gan vao quay - dat o quyen DISPATCH (MANAGER/SUPERVISOR
+// cung dieu phoi duoc), khac voi /staff day du chi danh cho STAFF_MANAGEMENT (SUPER_ADMIN).
+router.get('/officers', requirePermission('DISPATCH'), async (req, res) => {
+  res.json(await staffRepo.listByRole(pool, 'OFFICER'));
 });
 
 router.get('/analytics/top-metrics', requirePermission('MONITOR'), async (req, res) => {
@@ -81,6 +88,16 @@ router.delete('/counters/:id', requirePermission('DISPATCH'), async (req, res) =
   try {
     await counterService.deleteCounter(Number(req.params.id), req.staff.staffId, req.body.reason);
     res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/counters/:id/officer', requirePermission('DISPATCH'), async (req, res) => {
+  try {
+    const { officerId, reason } = req.body;
+    const counter = await counterService.assignOfficer(Number(req.params.id), officerId || null, req.staff.staffId, reason);
+    res.json(counter);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

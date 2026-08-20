@@ -1,5 +1,6 @@
 const { withTransaction } = require('../config/db');
 const counterRepo = require('../repositories/counterRepository');
+const staffRepo = require('../repositories/staffRepository');
 const auditRepo = require('../repositories/auditRepository');
 const queueEngine = require('./queueEngine');
 const wsHub = require('../websocket/wsHub');
@@ -109,6 +110,36 @@ async function deleteCounter(counterId, adminId, reason) {
   wsHub.broadcast(wsHub.EVENTS.COUNTER_STATUS_CHANGED, { counterId, deleted: true });
 }
 
+// Gan/Go can bo phu trach quay (officerId = null de go). Day la dieu can thiet de tai
+// khoan Officer tao o tab Quan ly Tai khoan thuc su dang nhap va thao tac duoc mot quay
+// (assertOwnCounterOrAdmin trong counterRoutes.js doi chieu counter.officer_id voi staffId).
+async function assignOfficer(counterId, officerId, adminId, reason) {
+  const result = await withTransaction(async (client) => {
+    const counter = await counterRepo.lockById(client, counterId);
+    if (!counter) throw new Error('Quay khong ton tai.');
+
+    let officer = null;
+    if (officerId) {
+      officer = await staffRepo.findById(client, officerId);
+      if (!officer) throw new Error('Can bo khong ton tai.');
+      if (officer.role !== 'OFFICER') throw new Error('Chi co the gan tai khoan vai tro Officer vao quay.');
+      if (!officer.is_active) throw new Error('Tai khoan Officer nay dang bi khoa.');
+      await counterRepo.clearOfficerFromOtherCounters(client, officerId, counterId);
+    }
+
+    const updated = await counterRepo.updateOfficer(client, counterId, officerId || null);
+    await auditRepo.insertLog(client, {
+      adminId, action: 'COUNTER_OFFICER_ASSIGNED', targetType: 'COUNTER', targetId: counterId,
+      reason: reason || (officerId ? 'Gan can bo phu trach quay' : 'Go can bo phu trach quay'),
+      payload: { from: counter.officer_id, to: officerId || null }
+    });
+    return updated;
+  });
+
+  wsHub.broadcast(wsHub.EVENTS.COUNTER_STATUS_CHANGED, { counter: result });
+  return result;
+}
+
 module.exports = {
-  setCounterStatus, changeCounterField, createCounter, updateCounterDetails, deleteCounter
+  setCounterStatus, changeCounterField, createCounter, updateCounterDetails, deleteCounter, assignOfficer
 };
