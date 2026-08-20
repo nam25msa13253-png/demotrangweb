@@ -20,6 +20,9 @@
   }
   .conveyor-item.priority { border-left-color: var(--color-warning); background: #fffbeb; }
   .empty-state { text-align: center; padding: 40px; color: var(--color-text-muted); }
+  /* counter.html khong dung header.js (khu vuc noi bo Can bo Quay, giong admin.html) nen
+     topbar phai dinh o top:0, khong con "site-header" 64px nao ben tren de nhuong cho no. */
+  .topbar { top: 0; }
 </style>
 </head>
 <body>
@@ -71,7 +74,6 @@
 <script src="js/toast.js"></script>
 <script src="js/wsClient.js"></script>
 <script src="js/counter.js"></script>
-<script src="js/header.js"></script>
 <script src="js/chatbot.js"></script>
 </body>
 </html>
