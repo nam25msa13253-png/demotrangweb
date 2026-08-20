@@ -7,6 +7,7 @@ const configService = require('../config/configService');
 const counterService = require('../services/counterService');
 const queueEngine = require('../services/queueEngine');
 const analyticsService = require('../services/analyticsService');
+const staffService = require('../services/staffService');
 const wsHub = require('../websocket/wsHub');
 const { authenticate, requirePermission } = require('../middleware/auth');
 
@@ -178,6 +179,39 @@ router.get('/analytics/service-quality', requirePermission('REPORTS'), async (re
 
 router.get('/audit-logs', requirePermission('REPORTS'), async (req, res) => {
   res.json(await analyticsService.getAuditLogs(Number(req.query.limit) || 100));
+});
+
+// ===================== Phan he 5: Quan ly Tai khoan Can bo (STAFF_MANAGEMENT) =====================
+router.get('/staff', requirePermission('STAFF_MANAGEMENT'), async (req, res) => {
+  res.json(await staffService.listStaff());
+});
+
+router.post('/staff', requirePermission('STAFF_MANAGEMENT'), async (req, res) => {
+  try {
+    const { fullName, username, password, role } = req.body;
+    const created = await staffService.createStaff({ fullName, username, password, role }, req.staff.staffId);
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/staff/:id/active', requirePermission('STAFF_MANAGEMENT'), async (req, res) => {
+  try {
+    const updated = await staffService.setStaffActive(req.params.id, !!req.body.isActive, req.staff.staffId);
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.put('/staff/:id/password', requirePermission('STAFF_MANAGEMENT'), async (req, res) => {
+  try {
+    await staffService.resetStaffPassword(req.params.id, req.body.password, req.staff.staffId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 module.exports = router;

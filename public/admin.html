@@ -55,6 +55,7 @@
     <button class="tab-btn" data-tab="dispatch" onclick="switchTab('dispatch')"><span class="tab-emoji">🚦</span><span>Điều phối Khẩn cấp</span></button>
     <button class="tab-btn" data-tab="config" onclick="switchTab('config')"><span class="tab-emoji">⚙️</span><span>Cấu hình Tham số</span></button>
     <button class="tab-btn" data-tab="reports" onclick="switchTab('reports')"><span class="tab-emoji">📈</span><span>Báo cáo &amp; Audit</span></button>
+    <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')" id="staffTabBtn"><span class="tab-emoji">👤</span><span>Quản lý Tài khoản</span></button>
   </div>
 
   <!-- ============ TAB: MONITOR ============ -->
@@ -155,6 +156,34 @@
     <div class="card mt-16">
       <h3>Nhật ký Kiểm toán (Audit Trail) — Read-only</h3>
       <table id="auditTable"><thead><tr><th>Thời gian</th><th>Admin</th><th>Hành động</th><th>Đối tượng</th><th>Lý do</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <!-- ============ TAB: STAFF ============ -->
+  <div id="tab-staff" class="tab-content hidden">
+    <div class="card">
+      <div class="counter-card-head">
+        <h3>Tài khoản Cán bộ (Officer / Supervisor / Manager)</h3>
+        <button class="btn btn-primary action-chip" onclick="toggleNewStaffBox()">+ Thêm tài khoản</button>
+      </div>
+      <div id="newStaffBox" class="new-counter-box hidden">
+        <div class="field"><label>Họ tên</label><input id="newStaffFullName" placeholder="VD: Nguyễn Văn A" /></div>
+        <div class="field"><label>Tên đăng nhập</label><input id="newStaffUsername" placeholder="VD: officer02" /></div>
+        <div class="field"><label>Mật khẩu</label><input id="newStaffPassword" type="password" placeholder="Tối thiểu 6 ký tự" /></div>
+        <div class="field">
+          <label>Vai trò</label>
+          <select id="newStaffRole">
+            <option value="OFFICER">Cán bộ Quầy (Officer)</option>
+            <option value="SUPERVISOR">Cán bộ Điều phối (Supervisor)</option>
+            <option value="MANAGER">Trưởng Trung tâm (Manager)</option>
+          </select>
+        </div>
+        <div class="flex gap-8">
+          <button class="btn btn-primary" style="flex:1" onclick="submitCreateStaff()">Lưu tài khoản</button>
+          <button class="btn btn-outline" style="flex:1" onclick="toggleNewStaffBox(false)">Hủy</button>
+        </div>
+      </div>
+      <div id="staffList"></div>
     </div>
   </div>
 </div>

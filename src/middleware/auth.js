@@ -7,7 +7,8 @@ const PERMISSION_GROUPS = {
   CONFIG: ['SUPER_ADMIN'],                                     // Cau hinh Tham so
   PRIORITY_RESTORE: ['SUPER_ADMIN', 'MANAGER', 'SUPERVISOR'],  // Khoi phuc / VIP
   REPORTS: ['SUPER_ADMIN', 'MANAGER'],                         // Xem Bao cao / Audit
-  COUNTER_OPS: ['SUPER_ADMIN', 'OFFICER']                      // Van hanh quay (Officer chi xem quay minh)
+  COUNTER_OPS: ['SUPER_ADMIN', 'OFFICER'],                     // Van hanh quay (Officer chi xem quay minh)
+  STAFF_MANAGEMENT: ['SUPER_ADMIN']                            // Quan ly Tai khoan Can bo
 };
 
 function authenticate(req, res, next) {
