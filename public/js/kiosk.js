@@ -1,9 +1,28 @@
 let currentService = null;
 
+// Phan hoi rung nhe khi cham nut tren man hinh cam ung (khong co gi xay ra tren thiet bi
+// khong ho tro rung - navigator.vibrate don gian khong ton tai/khong lam gi).
+function tapFeedback() {
+  if (navigator.vibrate) navigator.vibrate(12);
+}
+
+const STEP_ORDER = ['home', 'checklist', 'ticket'];
+function updateStepper(name) {
+  const currentIndex = STEP_ORDER.indexOf(name);
+  document.querySelectorAll('.kiosk-step').forEach((el) => {
+    const idx = STEP_ORDER.indexOf(el.dataset.step);
+    el.classList.toggle('active', idx === currentIndex);
+    el.classList.toggle('done', idx < currentIndex);
+  });
+  document.getElementById('stepLine1').classList.toggle('done', currentIndex > 0);
+  document.getElementById('stepLine2').classList.toggle('done', currentIndex > 1);
+}
+
 function showScreen(name) {
-  ['home', 'checklist', 'ticket'].forEach((s) => {
+  STEP_ORDER.forEach((s) => {
     document.getElementById(`screen-${s}`).classList.toggle('hidden', s !== name);
   });
+  updateStepper(name);
 }
 function goHome() {
   currentService = null;
@@ -11,13 +30,38 @@ function goHome() {
   document.getElementById('serviceList').innerHTML = '';
   showScreen('home');
 }
+function closeAllModals() {
+  ['wifiModal', 'dvcModal', 'reentryModal', 'formTemplateModal'].forEach(closeModal);
+}
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+
+// Kiosk dat noi cong cong: neu cong dan roi di giua chung ma khong bam "Hoan tat"/"Quay lai",
+// tu dong dua ve man hinh chu sau 1 thoi gian khong thao tac de bao ve rieng tu (nguoi ke tiep
+// khong nhin thay ho so/STT cua nguoi truoc con dang mo tren man hinh).
+const IDLE_RESET_MS = 90 * 1000;
+let idleTimer = null;
+function resetIdleTimer() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    const homeVisible = !document.getElementById('screen-home').classList.contains('hidden');
+    if (!homeVisible) { closeAllModals(); goHome(); }
+  }, IDLE_RESET_MS);
+}
+['click', 'touchstart', 'keydown'].forEach((evt) => document.addEventListener(evt, resetIdleTimer, { passive: true }));
+resetIdleTimer();
+
+function renderServiceListSkeleton() {
+  document.getElementById('serviceList').innerHTML = Array.from({ length: 3 })
+    .map(() => '<div class="skeleton-card"></div>').join('');
+}
 
 // ---- Tim kiem thu tuc (RAG rut gon: tim theo tu khoa ten/short_alias) ----
 async function searchServices() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
+  tapFeedback();
+  renderServiceListSkeleton();
   try {
     const services = await ApiClient.get(`/api/kiosk/services?q=${encodeURIComponent(q)}`);
     renderServiceList(services);
@@ -31,7 +75,9 @@ function renderServiceList(services) {
     return;
   }
   list.innerHTML = services.map((s) => `
-    <div class="service-item" onclick="selectService(${s.id})">
+    <div class="service-item" tabindex="0" role="button" aria-label="Chọn thủ tục ${s.name}"
+      onclick="selectService(${s.id})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectService(${s.id})}">
       <div>
         <div style="font-weight:700;">${s.name}</div>
         <div class="text-muted" style="font-size:0.85rem;">${s.field_name} • SLA ${s.sla_minutes} phút • Lệ phí ${Number(s.fee_amount).toLocaleString('vi-VN')}đ</div>
@@ -42,6 +88,7 @@ function renderServiceList(services) {
 }
 
 async function selectService(serviceId) {
+  tapFeedback();
   try {
     const data = await ApiClient.get(`/api/kiosk/services/${serviceId}/checklist`);
     currentService = data;
@@ -89,6 +136,7 @@ function renderChecklistStatus() {
 document.getElementById('checklistItems').addEventListener('change', renderChecklistStatus);
 
 async function submitCheckGate() {
+  tapFeedback();
   const confirmedDocCodes = Array.from(document.querySelectorAll('#checklistItems input:checked')).map((el) => el.value);
 
   try {
@@ -186,6 +234,7 @@ async function submitReentry() {
 
   const serviceId = params.get('serviceId');
   if (serviceId) selectService(Number(serviceId));
+  else updateStepper('home'); // khong co serviceId tren URL -> dang o man hinh chu, danh dau Buoc 1
 })();
 
 document.getElementById('searchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchServices(); });

@@ -72,6 +72,39 @@ body {
   margin-right: 6px;
 }
 
+/* Nut tang co chu (tra khong phai giam) danh cho cac trang cong khai - tang nhe (~8%) bang
+   zoom, khong lam vo bo cuc. Trang thai duoc nho qua localStorage nen giu nguyen khi chuyen
+   trang. Chi ap dung o cac trang cong dan thao tac truc tiep (Trang chu/Kiosk/Huong dan). */
+.site-font-toggle {
+  display: flex; align-items: center; gap: 6px;
+  background: transparent; border: 1.5px solid var(--color-border); color: var(--color-text-muted);
+  font-size: 0.82rem; font-weight: 700; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  margin-right: 6px; transition: background 0.15s ease, color 0.15s ease;
+}
+.site-font-toggle:hover { background: var(--color-bg); color: var(--color-text); }
+.site-font-toggle.active { background: #eff6ff; color: var(--color-primary-dark); border-color: #bfdbfe; }
+body.a11y-font-boost { zoom: 1.08; }
+
+/* ============== Focus ro rang khi dieu huong bang ban phim (Accessibility) ============== */
+.btn:focus-visible, .card-link:focus-visible, .service-item:focus-visible,
+.site-nav-link:focus-visible, .chatbot-fab:focus-visible, .chatbot-chip:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ============== Khung tai (Skeleton loading) - hien trong luc cho API tra ve ============== */
+.skeleton-card {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 37%, #e2e8f0 63%);
+  background-size: 400% 100%;
+  animation: skeletonShimmer 1.4s ease infinite;
+}
+@keyframes skeletonShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
 .topbar {
   display: flex;
   align-items: center;

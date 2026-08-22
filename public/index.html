@@ -76,7 +76,13 @@
     }
   }
 
+  function renderCategorySkeleton() {
+    document.getElementById('categoryGrid').innerHTML = Array.from({ length: 8 })
+      .map(() => '<div class="skeleton-card" style="height:130px;"></div>').join('');
+  }
+
   async function loadPopularServices() {
+    renderCategorySkeleton();
     try {
       const services = await fetch('/api/kiosk/services').then((r) => r.json());
       renderCategoryCards(services.slice(0, 8));
@@ -85,6 +91,7 @@
   }
 
   async function performSearch(keyword) {
+    renderCategorySkeleton();
     try {
       const services = await fetch(`/api/kiosk/services?q=${encodeURIComponent(keyword)}`).then((r) => r.json());
       renderCategoryCards(services, { title: `Kết quả cho "${keyword}"` });

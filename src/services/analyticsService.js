@@ -123,7 +123,24 @@ async function getAuditLogs(limit) {
   return auditRepo.listRecent(pool, limit);
 }
 
+// ---- Thong ke nhanh trong ca lam cua chinh 1 Officer (hien tren counter.html) ----
+async function getOfficerTodayStats(officerId) {
+  const { rows } = await pool.query(`
+    SELECT
+      SUM(CASE WHEN h.to_status = 'COMPLETED' THEN 1 ELSE 0 END) AS completed_today,
+      ROUND((AVG(CASE WHEN h.to_status = 'COMPLETED' THEN t.handling_duration_seconds END) / 60.0)::numeric, 1) AS avg_aht_minutes
+    FROM ticket_status_history h
+    JOIN tickets t ON t.id = h.ticket_id
+    WHERE h.officer_id = ? AND DATE(h.created_at) = CURRENT_DATE
+  `, [officerId]);
+  const r = rows[0] || {};
+  return {
+    completedToday: Number(r.completed_today) || 0,
+    avgAhtMinutes: r.avg_aht_minutes !== null ? Number(r.avg_aht_minutes) : null
+  };
+}
+
 module.exports = {
   getTopMetrics, getHeatmap, getOfficerKpi, getPeakHourAnalysis,
-  getServiceQualityByField, getAuditLogs
+  getServiceQualityByField, getAuditLogs, getOfficerTodayStats
 };

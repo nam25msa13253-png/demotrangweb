@@ -15,6 +15,48 @@ function logout() {
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 
+// Am bao ngan khi co su kien can chu y (ve moi vao hang doi, vang mat...) - dung Web Audio
+// API tu sinh tieng "beep", khong can file am thanh rieng. AudioContext chi duoc trinh duyet
+// cho phep khoi tao sau 1 tuong tac that cua nguoi dung (autoplay policy) nen tao lazy o lan
+// bam dau tien thay vi tao ngay luc trang vua mo.
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) audioCtx = new Ctx();
+  }
+  return audioCtx;
+}
+document.addEventListener('click', () => getAudioCtx(), { once: true });
+function playChime() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch (e) { /* bo qua neu trinh duyet chan */ }
+}
+
+// Su kien can bao am thanh cho can bo quay: co ve moi vao hang doi cua minh, vang mat, hoac
+// vua duoc chen ve uu tien - deu la nhung thoi diem can bo nen biet ngay ma khong phai nhin
+// man hinh lien tuc.
+const CHIME_EVENT_TYPES = new Set(['TICKET_CREATED', 'TIMEOUT_NO_SHOW', 'PRIORITY_INJECTED', 'TICKET_REENTRY']);
+
+async function loadTodayStats() {
+  try {
+    const stats = await ApiClient.get('/api/me/today-stats');
+    const ahtText = stats.avgAhtMinutes !== null ? ` • AHT ${stats.avgAhtMinutes}p` : '';
+    document.getElementById('todayStats').textContent = `Hôm nay: ${stats.completedToday} vé${ahtText}`;
+  } catch (e) { /* bo qua, khong lam gian doan man hinh chinh */ }
+}
+
 async function init() {
   try {
     allCounters = await ApiClient.get('/api/counters');
@@ -36,10 +78,13 @@ async function init() {
     setCounter(own.id);
   }
 
+  loadTodayStats();
+
   const ws = createWsClient();
-  ws.on('*', (payload) => {
+  ws.on('*', (payload, msg) => {
     const relatedCounterId = payload && (payload.counterId || (payload.ticket && payload.ticket.counter_id) || (payload.counter && payload.counter.id));
     if (myCounter && (relatedCounterId === myCounter.id || relatedCounterId === undefined)) {
+      if (CHIME_EVENT_TYPES.has(msg.type)) playChime();
       refresh();
     }
   });
@@ -159,11 +204,11 @@ function showUndoBar(ticket, seconds) {
     remain -= 1;
     const el = document.getElementById('undoCountdown');
     if (el) el.textContent = remain;
-    if (remain <= 0) { clearInterval(undoTimer); refresh(); }
+    if (remain <= 0) { clearInterval(undoTimer); refresh(); loadTodayStats(); }
   }, 1000);
 }
 async function undoComplete(ticketId) {
-  try { await ApiClient.post(`/api/tickets/${ticketId}/undo`, {}); clearTimers(); refresh(); }
+  try { await ApiClient.post(`/api/tickets/${ticketId}/undo`, {}); clearTimers(); refresh(); loadTodayStats(); }
   catch (err) { showToast(err.message, 'error'); }
 }
 

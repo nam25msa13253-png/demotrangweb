@@ -3,6 +3,7 @@ const { pool } = require('../config/db');
 const counterRepo = require('../repositories/counterRepository');
 const ticketRepo = require('../repositories/ticketRepository');
 const queueEngine = require('../services/queueEngine');
+const analyticsService = require('../services/analyticsService');
 const { authenticate, requirePermission } = require('../middleware/auth');
 
 const router = express.Router();
@@ -23,6 +24,13 @@ async function assertOwnCounterOrAdmin(req, res, next) {
 router.get('/counters', async (req, res) => {
   const rows = await counterRepo.listAll(pool);
   res.json(rows);
+});
+
+// Thong ke nhanh trong ca lam cua chinh Officer dang dang nhap (hien tren counter.html) -
+// khong dung tham so URL nao, luon lay theo req.staff.staffId de tranh xem duoc so lieu cua
+// nguoi khac.
+router.get('/me/today-stats', async (req, res) => {
+  res.json(await analyticsService.getOfficerTodayStats(req.staff.staffId));
 });
 
 router.get('/counters/:counterId/queue', assertOwnCounterOrAdmin, async (req, res) => {

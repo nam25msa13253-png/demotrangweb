@@ -38,6 +38,18 @@
   .config-row { display:flex; align-items:center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--color-border); gap: 12px; }
   .config-row input { max-width: 140px; }
   .action-chip { padding: 6px 12px; font-size: 0.85rem; border-radius: 8px; }
+  .peak-bar-col {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    gap: 4px; cursor: default;
+  }
+  .peak-bar-count { font-size: 0.75rem; font-weight: 700; color: var(--color-text); }
+  .peak-bar {
+    width: 100%; max-width: 28px; border-radius: 6px 6px 2px 2px;
+    background: linear-gradient(180deg, #60a5fa, var(--color-primary-dark));
+    transition: transform 0.15s ease, filter 0.15s ease;
+  }
+  .peak-bar-col:hover .peak-bar { transform: scaleY(1.03); filter: brightness(1.08); }
+  .peak-bar-label { font-size: 0.7rem; color: var(--color-text-muted); }
 </style>
 </head>
 <body>

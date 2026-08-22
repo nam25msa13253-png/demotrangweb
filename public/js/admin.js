@@ -304,10 +304,10 @@ async function loadReports() {
 
     const maxCount = Math.max(1, ...peak.map((p) => p.ticket_count));
     document.getElementById('peakHourChart').innerHTML = peak.map((p) => `
-      <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
-        <div style="font-size:0.75rem;">${p.ticket_count}</div>
-        <div style="width:100%; background:var(--color-primary); border-radius:4px 4px 0 0; height:${(p.ticket_count / maxCount) * 100}px;"></div>
-        <div style="font-size:0.7rem; color:var(--color-text-muted);">${p.hour}h</div>
+      <div class="peak-bar-col" title="${p.hour}h: ${p.ticket_count} vé">
+        <div class="peak-bar-count">${p.ticket_count}</div>
+        <div class="peak-bar" style="height:${Math.max(4, (p.ticket_count / maxCount) * 100)}px;"></div>
+        <div class="peak-bar-label">${p.hour}h</div>
       </div>`).join('') || '<p class="text-muted">Chưa có dữ liệu hôm nay</p>';
 
     document.querySelector('#auditTable tbody').innerHTML = audit.map((a) => `
@@ -389,10 +389,27 @@ async function resetStaffPassword(staffId) {
   } catch (err) { showToast(err.message, 'error'); }
 }
 
+// Toast realtime cho cac su kien quan trong Admin can biet ngay ca khi khong dang mo dung
+// tab (VD dang o tab Bao cao nhung co quay vua bi dong dot ngot o tab khac/thiet bi khac).
+function notifyImportantEvent(type, payload) {
+  if (type === 'PRIORITY_INJECTED' && payload.ticket && payload.counter) {
+    showToast(`Vé ưu tiên mới ${payload.ticket.ticket_number} tại ${payload.counter.code}.`, 'success');
+  } else if (type === 'TICKET_CANCELLED' && payload.outcome === 'EMERGENCY_SKIP' && payload.ticket) {
+    showToast(`Đã Emergency Skip vé ${payload.ticket.ticket_number}.`, 'error');
+  } else if (type === 'TICKET_CANCELLED' && payload.outcome === 'CANCELLED_3_STRIKE' && payload.ticket) {
+    showToast(`Vé ${payload.ticket.ticket_number} bị hủy do vắng mặt 3 lần liên tiếp.`, 'error');
+  } else if (type === 'COUNTER_STATUS_CHANGED' && payload.counter && payload.counter.status === 'CLOSED') {
+    showToast(`${payload.counter.code} vừa chuyển sang trạng thái Đóng.`, 'error');
+  } else if (type === 'COUNTER_STATUS_CHANGED' && payload.deleted) {
+    showToast(payload.movedCount > 0 ? `Một quầy vừa bị xóa, đã chuyển ${payload.movedCount} vé sang quầy khác.` : 'Một quầy vừa bị xóa.', 'error');
+  }
+}
+
 const ws = createWsClient();
-ws.on('*', () => {
+ws.on('*', (payload, msg) => {
   const activeTab = document.querySelector('.tab-btn.active').dataset.tab;
   if (activeTab === 'monitor') loadMonitor();
+  notifyImportantEvent(msg.type, payload || {});
 });
 
 loadMonitor();

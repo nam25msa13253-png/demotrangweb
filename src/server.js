@@ -78,6 +78,13 @@ app.use('/api', counterRoutes);       // /api/counters, /api/tickets/:id/* - dan
 // Frontend tinh (Kiosk / Counter / Display / Admin)
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// 404 tuy chinh: API tra JSON (client goi fetch mong doi JSON), trang tinh tra ve trang 404
+// than thien thay vi thong bao loi mac dinh cua Express/trinh duyet.
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Khong tim thay endpoint.' });
+  res.status(404).sendFile(path.join(__dirname, '..', 'public', '404.html'));
+});
+
 app.use((err, req, res, next) => {
   console.error('[server] Unhandled error:', err);
   res.status(500).json({ error: 'Loi he thong noi bo.' });
