@@ -16,8 +16,30 @@ const adminRoutes = require('./routes/adminRoutes');
 const displayRoutes = require('./routes/displayRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 
+// Danh sach domain duoc phep goi API tu trinh duyet (CORS). Doc tu bien moi truong
+// CORS_ORIGIN (nhieu domain cach nhau boi dau phay, VD khi doi ten mien: dat
+// CORS_ORIGIN=https://ten-mien-moi.com tren Render Dashboard -> Environment, KHONG can sua
+// code/deploy lai). Neu chua dat bien nay, fallback ve domain Render mac dinh hien tai.
+//
+// Luu y: vi trang tinh (public/) va API cung duoc phuc vu tu CHINH server nay (dong 37 ben
+// duoi), request tu cac trang Kiosk/Admin/Counter khi mo dung domain la SAME-ORIGIN nen KHONG
+// bi CORS chan du co cau hinh gi - danh sach nay chi chan cac trang WEB KHAC (domain la) goi
+// thang vao API cong khai (chong scraping/tich hop trai phep), khong lam thay doi trai
+// nghiem su dung binh thuong cua chinh he thong.
+const DEFAULT_ALLOWED_ORIGINS = ['https://smart-queue-system-akpr.onrender.com', 'http://localhost:3000'];
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+  : DEFAULT_ALLOWED_ORIGINS;
+
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    // Khong co Origin header (goi truc tiep bang curl/Postman, health check cua Render...)
+    // van duoc cho qua - CORS von chi ap dung cho request tu trinh duyet.
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('CORS: Nguon goc (origin) nay khong duoc phep truy cap API.'));
+  }
+}));
 app.use(express.json());
 
 // Luu y thu tu: cac prefix CU THE hon (/api/auth, /api/kiosk, /api/admin, /api/display,
