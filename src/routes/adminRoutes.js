@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../config/db');
 const counterRepo = require('../repositories/counterRepository');
+const ticketRepo = require('../repositories/ticketRepository');
 const serviceRepo = require('../repositories/serviceRepository');
 const formTemplateRepo = require('../repositories/formTemplateRepository');
 const configService = require('../config/configService');
@@ -86,8 +87,8 @@ router.put('/counters/:id', requirePermission('DISPATCH'), async (req, res) => {
 
 router.delete('/counters/:id', requirePermission('DISPATCH'), async (req, res) => {
   try {
-    await counterService.deleteCounter(Number(req.params.id), req.staff.staffId, req.body.reason);
-    res.json({ success: true });
+    const outcome = await counterService.deleteCounter(Number(req.params.id), req.staff.staffId, req.body.reason);
+    res.json({ success: true, ...outcome });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -133,6 +134,12 @@ router.post('/priority-inject', requirePermission('PRIORITY_RESTORE'), async (re
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// Danh sach ve (So thu tu + Quay) de chon nhanh tren UI Emergency Skip / Khoi phuc, thay vi
+// bat Admin go tay UUID Ticket ID.
+router.get('/tickets/actionable', requirePermission('PRIORITY_RESTORE'), async (req, res) => {
+  res.json(await ticketRepo.listActionableForAdmin(pool));
 });
 
 router.post('/tickets/:id/emergency-skip', requirePermission('PRIORITY_RESTORE'), async (req, res) => {

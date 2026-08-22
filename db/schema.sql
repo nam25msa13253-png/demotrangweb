@@ -69,14 +69,22 @@ CREATE TABLE services (
 -- ---------------------------------------------------------------------------
 CREATE TABLE counters (
   id               INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  code             VARCHAR(20) NOT NULL UNIQUE,
+  -- VARCHAR(60) (khong phai 20) vi khi "xoa" (soft-delete) 1 quay, ma quay goc duoc doi
+  -- sang dang luu tru VD "QUAY-06-DEL-1735000000000" de giai phong ma quay cho lan tao moi.
+  code             VARCHAR(60) NOT NULL UNIQUE,
   name             VARCHAR(100) NOT NULL,
   field_id         INT NOT NULL REFERENCES service_fields(id),
   officer_id       CHAR(36) REFERENCES staff(id),
   status           VARCHAR(10) NOT NULL DEFAULT 'CLOSED' CHECK (status IN ('OPEN','PAUSED','CLOSED')),
   active_ticket_id CHAR(36),
+  -- Soft-delete: "xoa" quay tren Admin Dashboard chi danh dau co nay = 1 (khong DELETE that
+  -- dong), de tickets/ticket_status_history van tham chieu duoc toi quay (bao toan Audit Trail)
+  -- ma quay van bien mat khoi moi danh sach dang hoat dong. Xem counterRepository.js.
+  is_deleted       SMALLINT NOT NULL DEFAULT 0,
   updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_counters_is_deleted ON counters (is_deleted);
 
 CREATE TRIGGER trg_counters_updated_at BEFORE UPDATE ON counters
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -252,7 +260,8 @@ INSERT INTO services (field_id, code, name, short_alias, sla_minutes, fee_amount
   (2, 'CHUYENMDSDD', 'Chuyển mục đích sử dụng đất', 'chuyển mục đích sử dụng đất', 30, 500000, '[{"code":"CCCD","name":"CCCD bản chính","mandatory":true},{"code":"GCNQSDD","name":"Giấy chứng nhận QSDD bản chính","mandatory":true},{"code":"TOKHAI_CMD","name":"Tờ khai chuyển mục đích sử dụng đất","mandatory":true}]'),
   (3, 'THAYDOI_DKKD', 'Thay đổi nội dung Đăng ký Kinh doanh', 'thay đổi đăng ký kinh doanh', 20, 100000, '[{"code":"CCCD","name":"CCCD bản chính","mandatory":true},{"code":"GCNDKKD_CU","name":"Giấy chứng nhận ĐKKD cũ","mandatory":true},{"code":"TOKHAI_TDDKKD","name":"Tờ khai thay đổi nội dung ĐKKD","mandatory":true}]'),
   (3, 'TAMNGUNG_KD', 'Tạm ngừng kinh doanh', 'tạm ngừng kinh doanh', 15, 0, '[{"code":"CCCD","name":"CCCD bản chính","mandatory":true},{"code":"TBTAMNGUNG","name":"Thông báo tạm ngừng kinh doanh","mandatory":true}]'),
-  (3, 'GIAITHE_HKD', 'Giải thể Hộ kinh doanh', 'giải thể hộ kinh doanh', 20, 0, '[{"code":"CCCD","name":"CCCD bản chính","mandatory":true},{"code":"GCNDKKD","name":"Giấy chứng nhận ĐKKD bản chính","mandatory":true},{"code":"TOKHAI_GT","name":"Tờ khai giải thể hộ kinh doanh","mandatory":true}]');
+  (3, 'GIAITHE_HKD', 'Giải thể Hộ kinh doanh', 'giải thể hộ kinh doanh', 20, 0, '[{"code":"CCCD","name":"CCCD bản chính","mandatory":true},{"code":"GCNDKKD","name":"Giấy chứng nhận ĐKKD bản chính","mandatory":true},{"code":"TOKHAI_GT","name":"Tờ khai giải thể hộ kinh doanh","mandatory":true}]'),
+  (1, 'TRICHLUC_HT', 'Trích lục hộ tịch', 'trích lục hộ tịch', 15, 8000, '[{"code":"CCCD","name":"CCCD/CMND bản chính người yêu cầu","mandatory":true},{"code":"TOKHAI_TLHT","name":"Tờ khai yêu cầu cấp bản sao trích lục hộ tịch","mandatory":true},{"code":"THONGTIN_SUKIEN","name":"Thông tin sự kiện hộ tịch đã đăng ký (số, quyển, ngày đăng ký nếu có)","mandatory":false}]');
 
 INSERT INTO counters (code, name, field_id, status) VALUES
   ('QUAY-01', 'Quầy 01', 1, 'CLOSED'),
@@ -264,7 +273,8 @@ INSERT INTO counters (code, name, field_id, status) VALUES
 INSERT INTO form_templates (service_id, form_code, form_name, shelf_name, tray_number, desk_area, annotated_sample_url) VALUES
   (1, 'TK-KS-01', 'Tờ khai đăng ký khai sinh', 'Kệ A', 'Khay 1', 'Khu Bàn viết A', '/assets/samples/tk-ks-01.png'),
   (2, 'TK-ST-01', 'Tờ khai sang tên QSDD', 'Kệ B', 'Khay 2', 'Khu Bàn viết B', '/assets/samples/tk-st-01.png'),
-  (3, 'TK-HKD-01', 'Tờ khai đăng ký hộ kinh doanh', 'Kệ C', 'Khay 1', 'Khu Bàn viết C', '/assets/samples/tk-hkd-01.png');
+  (3, 'TK-HKD-01', 'Tờ khai đăng ký hộ kinh doanh', 'Kệ C', 'Khay 1', 'Khu Bàn viết C', '/assets/samples/tk-hkd-01.png'),
+  ((SELECT id FROM services WHERE code = 'TRICHLUC_HT'), 'TK-TLHT-01', 'Tờ khai yêu cầu cấp bản sao trích lục hộ tịch', 'Kệ A', 'Khay 2', 'Khu Bàn viết A', '/assets/samples/tk-tlht-01.png');
 
 -- Tai khoan mau (password cho tat ca: "changeme" - DOI MAT KHAU that truoc khi trien khai production)
 -- Postgres khong co san ham UUID() nhu MySQL (can extension pgcrypto/uuid-ossp) - dung

@@ -52,10 +52,41 @@ async function selectService(serviceId) {
         <span>${d.name}${d.mandatory ? ' <b style="color:var(--color-danger)">*</b>' : ''}</span>
       </label>
     `).join('');
-    document.getElementById('checklistResult').innerHTML = '';
+    renderChecklistStatus();
     showScreen('checklist');
   } catch (err) { showToast(err.message, 'error'); }
 }
+
+// Phan hoi truc quan theo thoi gian thuc khi cong dan tich chon giay to: con thieu -> banner
+// do; da du 100% giay to bat buoc -> banner xanh. Giup nguoi dan biet ngay minh con thieu gi
+// truoc khi bam "Xac nhan" thay vi phai doi server tra loi REJECTED.
+function renderChecklistStatus() {
+  const box = document.getElementById('checklistResult');
+  if (!currentService) { box.innerHTML = ''; return; }
+
+  const mandatoryDocs = (currentService.requiredDocs || []).filter((d) => d.mandatory);
+  const checkedCodes = new Set(Array.from(document.querySelectorAll('#checklistItems input:checked')).map((el) => el.value));
+  const missingDocs = mandatoryDocs.filter((d) => !checkedCodes.has(d.code));
+
+  if (missingDocs.length > 0) {
+    box.innerHTML = `
+      <div class="checklist-status checklist-status-missing">
+        <span class="icon">⚠️</span>
+        <div>
+          <div>Còn thiếu ${missingDocs.length} giấy tờ bắt buộc</div>
+          <div class="sub">${missingDocs.map((d) => d.name).join(', ')}</div>
+        </div>
+      </div>`;
+  } else {
+    box.innerHTML = `
+      <div class="checklist-status checklist-status-ok">
+        <span class="icon">✅</span>
+        <div>Đã đủ giấy tờ bắt buộc — sẵn sàng lấy số thứ tự!</div>
+      </div>`;
+  }
+}
+
+document.getElementById('checklistItems').addEventListener('change', renderChecklistStatus);
 
 async function submitCheckGate() {
   const confirmedDocCodes = Array.from(document.querySelectorAll('#checklistItems input:checked')).map((el) => el.value);

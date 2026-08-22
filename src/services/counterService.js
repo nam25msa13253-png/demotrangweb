@@ -1,6 +1,7 @@
 const { withTransaction } = require('../config/db');
 const counterRepo = require('../repositories/counterRepository');
 const staffRepo = require('../repositories/staffRepository');
+const ticketRepo = require('../repositories/ticketRepository');
 const auditRepo = require('../repositories/auditRepository');
 const queueEngine = require('./queueEngine');
 const wsHub = require('../websocket/wsHub');
@@ -83,31 +84,56 @@ async function updateCounterDetails(counterId, code, name, adminId) {
   return result;
 }
 
-// Xoa quay: chi cho phep khi khong dang xu ly ve. Neu quay da co lich su giao dich (tickets/
-// ticket_status_history tham chieu toi), FK RESTRICT se chan xoa de bao toan Audit Trail -
-// huong dan Admin dung "Dong" thay vi xoa trong truong hop do.
+// Xoa quay (soft-delete, xem counterRepository.softDelete): chi chan khi dang xu ly ve
+// (CALLING/PROCESSING) - truong hop nay can bo phai Hoan tat/Tam dung truoc vi khong the
+// di chuyen an toan 1 giao dich dang do dang. Neu quay con ve dang QUEUED, tu dong chuyen
+// toan bo sang quay OPEN khac CUNG LINH VUC theo dung thuat toan Least Queue Depth ma he
+// thong dung khi cap ve moi (xem counterRepo.findLeastLoadedByField) - dam bao hanh vi nhat
+// quan voi cac quay khac thay vi mot luat rieng cho truong hop xoa.
 async function deleteCounter(counterId, adminId, reason) {
-  await withTransaction(async (client) => {
+  const outcome = await withTransaction(async (client) => {
     const counter = await counterRepo.lockById(client, counterId);
     if (!counter) throw new Error('Quay khong ton tai.');
     if (counter.active_ticket_id) {
       throw new Error('Khong the xoa quay dang xu ly ve. Vui long Hoan tat/Tam dung truoc.');
     }
-    try {
-      await counterRepo.remove(client, counterId);
-    } catch (err) {
-      if (err.code === '23503') { // foreign_key_violation (Postgres SQLSTATE)
-        throw new Error('Quay nay da co lich su giao dich, khong the xoa de bao toan Audit Trail. Vui long chuyen trang thai sang "Dong" thay vi xoa.');
+
+    const queue = (await ticketRepo.listQueueForCounter(client, counterId)).filter((t) => t.status === 'QUEUED');
+    let target = null;
+    if (queue.length > 0) {
+      target = await counterRepo.findLeastLoadedByField(client, counter.field_id, counterId);
+      if (!target) {
+        throw new Error(`Khong the xoa: day la quay dang mo duy nhat cua linh vuc nay va con ${queue.length} ve dang cho. Vui long mo quay khac cung linh vuc truoc, hoac dung "Dong" thay vi xoa.`);
       }
-      throw err;
+
+      let tailPos = await ticketRepo.maxQueuePositionForCounter(client, target.id);
+      for (const t of queue) {
+        tailPos += 1;
+        await ticketRepo.reassignCounter(client, t.id, target.id, tailPos);
+        await ticketRepo.insertHistory(client, {
+          ticketId: t.id, fromStatus: 'QUEUED', toStatus: 'QUEUED', counterId: target.id, officerId: adminId,
+          eventData: { event: 'COUNTER_DELETED_REASSIGN', fromCounterId: counterId, toCounterId: target.id }
+        });
+      }
     }
+
+    const archivedCode = `${counter.code}-DEL-${Date.now()}`;
+    await counterRepo.softDelete(client, counterId, archivedCode);
+
     await auditRepo.insertLog(client, {
       adminId, action: 'COUNTER_DELETED', targetType: 'COUNTER', targetId: counterId,
-      reason: reason || 'Xoa quay', payload: { code: counter.code, name: counter.name }
+      reason: reason || 'Xoa quay',
+      payload: { code: counter.code, name: counter.name, movedTicketCount: queue.length, movedToCounterId: target ? target.id : null }
     });
+
+    return { movedCount: queue.length, targetCounterId: target ? target.id : null };
   });
 
-  wsHub.broadcast(wsHub.EVENTS.COUNTER_STATUS_CHANGED, { counterId, deleted: true });
+  wsHub.broadcast(wsHub.EVENTS.COUNTER_STATUS_CHANGED, { counterId, deleted: true, ...outcome });
+  if (outcome.targetCounterId) {
+    wsHub.broadcast(wsHub.EVENTS.QUEUE_REBALANCED, { fromCounterId: counterId, toCounterId: outcome.targetCounterId, movedCount: outcome.movedCount });
+  }
+  return outcome;
 }
 
 // Gan/Go can bo phu trach quay (officerId = null de go). Day la dieu can thiet de tai

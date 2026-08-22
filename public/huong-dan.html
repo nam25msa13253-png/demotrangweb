@@ -4,28 +4,48 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Hướng dẫn sử dụng - Một Cửa Thông Minh</title>
-<link rel="stylesheet" href="css/common.css" />
+<link rel="stylesheet" href="css/common.css?v=2" />
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
 <style>
-  .page-hero { text-align: center; padding: 40px 20px 8px; }
-  .page-hero h1 { font-size: 1.9rem; margin-bottom: 8px; }
-  .page-hero p { color: var(--color-text-muted); max-width: 600px; margin: 0 auto; }
-  .step-list { display: flex; flex-direction: column; gap: 14px; margin-top: 24px; }
-  .step-item { display: flex; gap: 18px; align-items: flex-start; }
-  .step-num {
-    flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
-    background: var(--color-primary); color: #fff; font-weight: 800;
-    display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+  body { font-size: 18px; }
+  .page-hero { text-align: center; padding: 44px 20px 8px; }
+  .page-hero h1 { font-size: 2.4rem; margin-bottom: 10px; }
+  .page-hero p { color: var(--color-text-muted); max-width: 640px; margin: 0 auto; font-size: 1.15rem; line-height: 1.5; }
+
+  .step-list { display: flex; flex-direction: column; gap: 18px; margin-top: 8px; }
+  .step-item {
+    display: flex; gap: 20px; align-items: flex-start;
+    background: var(--step-bg); border: 1.5px solid var(--step-border);
+    border-radius: var(--radius-lg); padding: 22px 24px;
   }
-  .step-item h3 { margin: 4px 0 6px; font-size: 1.05rem; }
-  .step-item p { margin: 0; color: var(--color-text-muted); font-size: 0.92rem; }
-  .faq-item { border-bottom: 1px solid var(--color-border); padding: 16px 0; }
+  .step-icon {
+    flex-shrink: 0; width: 64px; height: 64px; border-radius: 50%;
+    background: var(--step-icon-bg); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  }
+  .step-item .step-tag { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--step-icon-bg); margin-bottom: 4px; }
+  .step-item h3 { margin: 0 0 8px; font-size: 1.3rem; }
+  .step-item p { margin: 0; color: var(--color-text); font-size: 1.02rem; line-height: 1.55; }
+  .step-item:nth-child(1) { --step-bg: #eff6ff; --step-border: #bfdbfe; --step-icon-bg: #2563eb; }
+  .step-item:nth-child(2) { --step-bg: #f0fdf4; --step-border: #bbf7d0; --step-icon-bg: #16a34a; }
+  .step-item:nth-child(3) { --step-bg: #fffbeb; --step-border: #fde68a; --step-icon-bg: #d97706; }
+  .step-item:nth-child(4) { --step-bg: #faf5ff; --step-border: #e9d5ff; --step-icon-bg: #9333ea; }
+  .step-item:nth-child(5) { --step-bg: #fdf2f8; --step-border: #fbcfe8; --step-icon-bg: #db2777; }
+
+  .faq-item { border-bottom: 1px solid var(--color-border); padding: 20px 0; }
   .faq-item:last-child { border-bottom: none; }
-  .faq-item summary { cursor: pointer; font-weight: 700; list-style: none; }
+  .faq-item summary { cursor: pointer; font-weight: 700; list-style: none; font-size: 1.08rem; display: flex; align-items: center; padding: 4px 0; }
   .faq-item summary::-webkit-details-marker { display: none; }
-  .faq-item summary::before { content: '?'; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #eff6ff; color: var(--color-primary); font-size: 0.8rem; margin-right: 10px; }
-  .faq-item p { margin: 10px 0 0 32px; color: var(--color-text-muted); font-size: 0.92rem; }
-  .cta-box { text-align: center; padding: 36px; }
+  .faq-item summary::before { content: '?'; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #eff6ff; color: var(--color-primary); font-size: 1rem; font-weight: 800; margin-right: 14px; }
+  .faq-item p { margin: 12px 0 0 44px; color: var(--color-text-muted); font-size: 1rem; line-height: 1.6; }
+  .cta-box { text-align: center; padding: 40px; }
+  .cta-box h2 { font-size: 1.6rem; }
+  .cta-box p { font-size: 1.05rem; }
+
+  @media (max-width: 640px) {
+    .step-item { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -36,42 +56,45 @@
     <p>5 bước đơn giản để hoàn tất thủ tục hành chính công mà không phải chờ đợi ngoài dự kiến.</p>
   </section>
 
-  <div class="card mt-24">
-    <div class="step-list">
-      <div class="step-item">
-        <div class="step-num">1</div>
-        <div>
-          <h3>Tra cứu thủ tục cần thực hiện</h3>
-          <p>Nhập tên thủ tục tại ô tìm kiếm ở Trang chủ (VD: "khai sinh", "sang tên đất đai") hoặc hỏi trực tiếp Trợ lý AI ở góc phải màn hình.</p>
-        </div>
+  <div class="step-list mt-24">
+    <div class="step-item">
+      <div class="step-icon">🔍</div>
+      <div>
+        <div class="step-tag">Bước 1</div>
+        <h3>Tra cứu thủ tục cần thực hiện</h3>
+        <p>Nhập tên thủ tục tại ô tìm kiếm ở Trang chủ (VD: "khai sinh", "sang tên đất đai") hoặc hỏi trực tiếp Trợ lý AI ở góc phải màn hình.</p>
       </div>
-      <div class="step-item">
-        <div class="step-num">2</div>
-        <div>
-          <h3>Đối chiếu checklist giấy tờ</h3>
-          <p>Hệ thống hiển thị đầy đủ danh sách giấy tờ bắt buộc. Tích chọn những giấy tờ bạn đã chuẩn bị sẵn.</p>
-        </div>
+    </div>
+    <div class="step-item">
+      <div class="step-icon">📋</div>
+      <div>
+        <div class="step-tag">Bước 2</div>
+        <h3>Đối chiếu checklist giấy tờ</h3>
+        <p>Hệ thống hiển thị đầy đủ danh sách giấy tờ bắt buộc. Tích chọn những giấy tờ bạn đã chuẩn bị sẵn.</p>
       </div>
-      <div class="step-item">
-        <div class="step-num">3</div>
-        <div>
-          <h3>Bổ sung nếu còn thiếu</h3>
-          <p>Nếu thiếu tờ khai hoặc giấy tờ, hệ thống chỉ dẫn chính xác vị trí kệ/khay lấy phôi và hiển thị mẫu tờ khai có chú thích ngay tại Kiosk.</p>
-        </div>
+    </div>
+    <div class="step-item">
+      <div class="step-icon">📝</div>
+      <div>
+        <div class="step-tag">Bước 3</div>
+        <h3>Bổ sung nếu còn thiếu</h3>
+        <p>Nếu thiếu tờ khai hoặc giấy tờ, hệ thống chỉ dẫn chính xác vị trí kệ/khay lấy phôi và hiển thị mẫu tờ khai có chú thích ngay tại Kiosk.</p>
       </div>
-      <div class="step-item">
-        <div class="step-num">4</div>
-        <div>
-          <h3>Lấy số thứ tự (STT)</h3>
-          <p>Khi hồ sơ đã đủ 100%, hệ thống tự động cấp số thứ tự và phân bổ vào quầy phù hợp có ít người chờ nhất.</p>
-        </div>
+    </div>
+    <div class="step-item">
+      <div class="step-icon">🎫</div>
+      <div>
+        <div class="step-tag">Bước 4</div>
+        <h3>Lấy số thứ tự (STT)</h3>
+        <p>Khi hồ sơ đã đủ 100%, hệ thống tự động cấp số thứ tự và phân bổ vào quầy phù hợp có ít người chờ nhất.</p>
       </div>
-      <div class="step-item">
-        <div class="step-num">5</div>
-        <div>
-          <h3>Theo dõi & đến quầy khi được gọi</h3>
-          <p>Theo dõi số thứ tự qua Bảng LED hoặc lắng nghe loa thông báo. Nếu vắng mặt, bạn sẽ được gọi nhắc lại tối đa 2 lần trước khi số bị hủy.</p>
-        </div>
+    </div>
+    <div class="step-item">
+      <div class="step-icon">📢</div>
+      <div>
+        <div class="step-tag">Bước 5</div>
+        <h3>Theo dõi & đến quầy khi được gọi</h3>
+        <p>Theo dõi số thứ tự qua Bảng LED hoặc lắng nghe loa thông báo. Nếu vắng mặt, bạn sẽ được gọi nhắc lại tối đa 2 lần trước khi số bị hủy.</p>
       </div>
     </div>
   </div>
@@ -109,6 +132,6 @@
 </div>
 
 <script src="js/header.js"></script>
-<script src="js/chatbot.js"></script>
+<script src="js/chatbot.js?v=2"></script>
 </body>
 </html>

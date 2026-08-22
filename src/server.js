@@ -7,6 +7,7 @@ const cors = require('cors');
 const wsHub = require('./websocket/wsHub');
 const configService = require('./config/configService');
 const purgeScheduler = require('./services/purgeScheduler');
+const runMigrations = require('./migrations/runMigrations');
 
 const authRoutes = require('./routes/authRoutes');
 const kioskRoutes = require('./routes/kioskRoutes');
@@ -46,7 +47,8 @@ wsHub.init(server); // WebSocket tich hop chung port voi HTTP server
 // Render (va cac PaaS khac) tu gan cong qua bien PORT - phai uu tien no truoc SERVER_PORT.
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 
-configService.loadAll()
+runMigrations.run()
+  .then(() => configService.loadAll())
   .then(() => {
     purgeScheduler.start();
     server.listen(PORT, () => {
@@ -58,6 +60,6 @@ configService.loadAll()
     });
   })
   .catch((err) => {
-    console.error('Khong the khoi dong server (loi nap cau hinh he thong tu DB):', err);
+    console.error('Khong the khoi dong server (loi migrate/nap cau hinh he thong tu DB):', err);
     process.exit(1);
   });

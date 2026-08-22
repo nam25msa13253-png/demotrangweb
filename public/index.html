@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Trang chủ - Hỗ trợ Tra cứu Thủ tục Hành chính</title>
-<link rel="stylesheet" href="css/common.css" />
+<link rel="stylesheet" href="css/common.css?v=2" />
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
 <style>
   .category-grid { margin-top: 8px; }
@@ -20,7 +20,7 @@
     <p>Hệ thống thông minh giúp bạn tra cứu nhanh chóng, chuẩn bị đầy đủ giấy tờ
        và tiết kiệm thời gian khi thực hiện các thủ tục hành chính công.</p>
 
-    <form class="hero-search-row" id="searchForm">
+    <form class="hero-search-row" id="searchForm" autocomplete="off">
       <input id="searchInput" type="text" placeholder="Nhập tên thủ tục bạn muốn tìm kiếm (VD: Khai sinh, Đất đai...)" />
       <button type="submit" class="btn btn-primary">Tra cứu →</button>
     </form>
@@ -49,7 +49,8 @@
 
 <script>window.CHATBOT_AUTO_OPEN = true;</script>
 <script src="js/header.js"></script>
-<script src="js/chatbot.js"></script>
+<script src="js/chatbot.js?v=2"></script>
+<script src="js/searchSuggest.js"></script>
 <script>
   function renderCategoryCards(services, opts) {
     opts = opts || {};
@@ -95,6 +96,10 @@
     e.preventDefault();
     const keyword = document.getElementById('searchInput').value.trim();
     if (keyword) performSearch(keyword); else loadPopularServices();
+  });
+
+  SearchSuggest.attach(document.getElementById('searchInput'), document.getElementById('searchForm'), {
+    onSelect: (service) => { window.location.href = `kiosk.html?serviceId=${service.id}`; }
   });
 
   fetch('/api/kiosk/counters/status')

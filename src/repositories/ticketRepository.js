@@ -136,6 +136,24 @@ async function findAllQueuedAndCallingForEOD(client) {
   return rows.map(mapTicket);
 }
 
+// Danh sach ve dung cho UI chon nhanh tren Admin Control Tower (Emergency Skip / Khoi phuc
+// Ve huy nham) - hien thi theo So thu tu + Quay thay vi bat Admin phai go tay UUID Ticket ID
+// hay nhap Ho ten/SDT cong dan. Gom ca trang thai dang hoat dong (co the Emergency Skip) va
+// CANCELLED trong ngay (co the Khoi phuc); server van tu tham dinh dung trang thai khi thao tac.
+async function listActionableForAdmin(client) {
+  const { rows } = await client.query(
+    `SELECT t.id, t.ticket_number, t.status, t.is_priority, t.created_at,
+            c.code AS counter_code, c.name AS counter_name
+     FROM tickets t
+     LEFT JOIN counters c ON c.id = t.counter_id
+     WHERE t.status IN ('QUEUED','CALLING','PROCESSING','SUPP_PENDING','CANCELLED')
+       AND t.created_at >= CURRENT_DATE
+     ORDER BY t.created_at DESC
+     LIMIT 200`
+  );
+  return rows;
+}
+
 async function countTodayByField(client, fieldId) {
   const { rows } = await client.query(
     `SELECT COUNT(*) AS cnt FROM tickets t
@@ -149,6 +167,6 @@ async function countTodayByField(client, fieldId) {
 module.exports = {
   insertTicket, lockTicketById, findTicketById, findByReentryToken,
   findNextQueuedForCounter, countActiveForCounter, maxQueuePositionForCounter,
-  updateStatus, insertHistory, listQueueForCounter, listTailQueued,
+  updateStatus, insertHistory, listQueueForCounter, listTailQueued, listActionableForAdmin,
   reassignCounter, findExpiredForPurge, findAllQueuedAndCallingForEOD, countTodayByField
 };

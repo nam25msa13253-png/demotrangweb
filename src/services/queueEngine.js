@@ -314,6 +314,9 @@ async function reentryScan(token) {
 // -----------------------------------------------------------------------------------
 async function priorityInject({ serviceId, citizenName, phone, priorityReasonCode, counterId, adminId }) {
   if (!priorityReasonCode) throw new Error('Bat buoc chon ly do uu tien hop le tu danh muc cung.');
+  // Admin Control Tower khong con thu thap Ho ten/SDT cong dan khi cap ve uu tien (chi dinh
+  // danh bang So thu tu + Quay) - dung ten an danh, khong lam gian doan luong cap STT.
+  const safeCitizenName = (citizenName && String(citizenName).trim()) || 'Công dân ưu tiên';
 
   const result = await withTransaction(async (client) => {
     const service = await serviceRepo.findServiceById(client, serviceId);
@@ -342,7 +345,7 @@ async function priorityInject({ serviceId, citizenName, phone, priorityReasonCod
     const priorityPosition = Number(minPos.rows[0].min_pos) - 1; // Active Slot + 1
 
     const ticket = await ticketRepo.insertTicket(client, {
-      ticketNumber, serviceId, counterId: counter.id, citizenName, phone,
+      ticketNumber, serviceId, counterId: counter.id, citizenName: safeCitizenName, phone: phone || '',
       isPriority: true, priorityReasonId: reason.id, queuePosition: priorityPosition
     });
 

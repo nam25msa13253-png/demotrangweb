@@ -39,3 +39,16 @@ const ApiClient = (() => {
     getToken, getStaff, setSession, clearSession
   };
 })();
+
+// Phien dang nhap dung chung 1 localStorage cho ca trinh duyet: neu 1 tab khac dang nhap/
+// dang xuat (VD dang nhap tai khoan Officer trong tab Counter trong khi tab Admin dang mo
+// san bang tai khoan SUPER_ADMIN), sq_token bi ghi de ngay lap tuc dung cho MOI tab. Neu
+// khong xu ly, tab Admin van hien UI cua vai tro cu (da doc vao bo nho luc tai trang) nhung
+// moi request API sau do lai gui token MOI (vai tro khac) -> loi 403 kho hieu ("Vai tro
+// OFFICER khong co quyen...") du dang nhin thay giao dien SUPER_ADMIN. Tai lai trang de moi
+// tab luon dong bo dung vai tro/token hien hanh va tu dieu huong lai cho phu hop.
+window.addEventListener('storage', (e) => {
+  if (e.key === 'sq_token' || e.key === 'sq_staff') {
+    window.location.reload();
+  }
+});

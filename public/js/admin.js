@@ -63,16 +63,22 @@ let dispatchFieldsCache = [];
 
 let dispatchOfficersCache = [];
 
+const TICKET_STATUS_LABELS = {
+  QUEUED: 'Đang chờ', CALLING: 'Đang gọi', PROCESSING: 'Đang xử lý',
+  SUPP_PENDING: 'Chờ bổ sung', CANCELLED: 'Đã hủy'
+};
+
 async function loadDispatch() {
   try {
     // /api/kiosk/services tra ve TAT CA thu tuc dang hoat dong trong he thong (khong gioi han
     // so luong) - dropdown VIP Injection ben duoi vi vay luon liet ke day du tat ca thu tuc.
-    const [counters, fields, services, reasons, officers] = await Promise.all([
+    const [counters, fields, services, reasons, officers, actionableTickets] = await Promise.all([
       ApiClient.get('/api/admin/counters'),
       ApiClient.get('/api/admin/fields'),
       ApiClient.get('/api/kiosk/services'),
       ApiClient.get('/api/admin/priority-reasons'),
-      ApiClient.get('/api/admin/officers')
+      ApiClient.get('/api/admin/officers'),
+      ApiClient.get('/api/admin/tickets/actionable')
     ]);
     dispatchFieldsCache = fields;
     dispatchOfficersCache = officers;
@@ -87,6 +93,11 @@ async function loadDispatch() {
 
     document.getElementById('vipService').innerHTML = services.map((s) => `<option value="${s.id}">${s.field_name} — ${s.name}</option>`).join('');
     document.getElementById('vipReason').innerHTML = reasons.map((r) => `<option value="${r.code}">${r.label}</option>`).join('');
+
+    document.getElementById('skipTicketSelect').innerHTML = '<option value="">-- Chọn vé --</option>' + actionableTickets.map((t) => {
+      const label = `${t.ticket_number} — ${t.counter_code || 'Chưa gán quầy'} (${TICKET_STATUS_LABELS[t.status] || t.status})`;
+      return `<option value="${t.id}">${label}</option>`;
+    }).join('');
   } catch (err) { showToast(err.message, 'error'); }
 }
 
@@ -149,10 +160,13 @@ async function saveCounterEdit(counterId) {
 }
 
 async function deleteCounter(counterId) {
-  if (!confirm('Xóa quầy này? Nếu quầy đã có lịch sử giao dịch, hệ thống sẽ từ chối để bảo toàn Audit Trail — khi đó hãy dùng "Đóng" thay vì xóa.')) return;
+  if (!confirm('Xóa quầy này? Nếu còn vé đang chờ, hệ thống sẽ tự động chuyển các vé đó sang quầy khác đang mở cùng lĩnh vực (theo quầy đang ít tải nhất).')) return;
   const reason = prompt('Lý do xóa quầy (ghi Audit Log):', '') || '';
-  try { await ApiClient.delete(`/api/admin/counters/${counterId}`, { reason }); showToast('Đã xóa quầy.', 'success'); loadDispatch(); }
-  catch (err) { showToast(err.message, 'error'); }
+  try {
+    const result = await ApiClient.delete(`/api/admin/counters/${counterId}`, { reason });
+    showToast(result.movedCount > 0 ? `Đã xóa quầy và chuyển ${result.movedCount} vé sang quầy khác.` : 'Đã xóa quầy.', 'success');
+    loadDispatch();
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 function toggleNewCounterBox(show) {
@@ -209,26 +223,31 @@ async function submitPriorityInject() {
     const result = await ApiClient.post('/api/admin/priority-inject', {
       serviceId: document.getElementById('vipService').value,
       counterId: document.getElementById('vipCounter').value || null,
-      citizenName: document.getElementById('vipName').value,
-      phone: document.getElementById('vipPhone').value,
       priorityReasonCode: document.getElementById('vipReason').value
     });
     showToast(`Đã cấp vé ưu tiên ${result.ticket.ticket_number}.`, 'success');
+    loadDispatch();
   } catch (err) { showToast(err.message, 'error'); }
 }
 async function submitEmergencySkip() {
-  const ticketId = document.getElementById('skipTicketId').value.trim();
+  const ticketId = document.getElementById('skipTicketSelect').value;
   const reason = document.getElementById('skipReason').value.trim();
-  if (!ticketId || !reason) return showToast('Vui lòng nhập Ticket ID và lý do.', 'error');
-  try { await ApiClient.post(`/api/admin/tickets/${ticketId}/emergency-skip`, { reason }); showToast('Đã đẩy hồ sơ ra khỏi băng chuyền.', 'success'); }
-  catch (err) { showToast(err.message, 'error'); }
+  if (!ticketId || !reason) return showToast('Vui lòng chọn vé và nhập lý do.', 'error');
+  try {
+    await ApiClient.post(`/api/admin/tickets/${ticketId}/emergency-skip`, { reason });
+    showToast('Đã đẩy hồ sơ ra khỏi băng chuyền.', 'success');
+    loadDispatch();
+  } catch (err) { showToast(err.message, 'error'); }
 }
 async function submitRestore() {
-  const ticketId = document.getElementById('skipTicketId').value.trim();
+  const ticketId = document.getElementById('skipTicketSelect').value;
   const reason = document.getElementById('skipReason').value.trim();
-  if (!ticketId) return showToast('Vui lòng nhập Ticket ID.', 'error');
-  try { await ApiClient.post(`/api/admin/tickets/${ticketId}/restore`, { reason }); showToast('Đã khôi phục vé.', 'success'); }
-  catch (err) { showToast(err.message, 'error'); }
+  if (!ticketId) return showToast('Vui lòng chọn vé.', 'error');
+  try {
+    await ApiClient.post(`/api/admin/tickets/${ticketId}/restore`, { reason });
+    showToast('Đã khôi phục vé.', 'success');
+    loadDispatch();
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 // =============================== TAB: CONFIG ===============================
