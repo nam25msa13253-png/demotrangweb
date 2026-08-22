@@ -11,16 +11,21 @@ const PERMISSION_GROUPS = {
   STAFF_MANAGEMENT: ['SUPER_ADMIN']                            // Quan ly Tai khoan Can bo
 };
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Thieu token xac thuc.' });
 
-  const session = authService.verifyToken(token);
-  if (!session) return res.status(401).json({ error: 'Token khong hop le hoac da het han.' });
-
-  req.staff = session;
-  next();
+  try {
+    // Express 4 khong tu bat Promise reject tu middleware async - phai try/catch thu cong,
+    // neu khong loi DB se lam request treo vo han thay vi tra ve loi ro rang.
+    const session = await authService.verifyToken(token);
+    if (!session) return res.status(401).json({ error: 'Token khong hop le hoac da het han.' });
+    req.staff = session;
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 function requirePermission(groupName) {

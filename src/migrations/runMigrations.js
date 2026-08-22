@@ -44,9 +44,27 @@ async function addTrichLucHoTichService() {
   }
 }
 
+async function addStaffSessionsTable() {
+  // Chuyen phien dang nhap tu Map trong bo nho (mat het khi server restart/deploy lai -
+  // Render free tier hay restart) sang luu trong chinh Postgres da co san, khong can them
+  // Redis/dich vu moi. Xem src/services/authService.js.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS staff_sessions (
+      token       CHAR(64) PRIMARY KEY,
+      staff_id    CHAR(36) NOT NULL REFERENCES staff(id),
+      role        VARCHAR(20) NOT NULL,
+      full_name   VARCHAR(150) NOT NULL,
+      expires_at  TIMESTAMP NOT NULL,
+      created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_staff_sessions_expires ON staff_sessions (expires_at)`);
+}
+
 async function run() {
   await addSoftDeleteToCounters();
   await addTrichLucHoTichService();
+  await addStaffSessionsTable();
 }
 
 module.exports = { run };

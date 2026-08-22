@@ -49,6 +49,21 @@ CREATE TABLE staff (
 );
 
 -- ---------------------------------------------------------------------------
+-- staff_sessions: phien dang nhap (thay the Map trong bo nho cua ban cu - token con hieu luc
+-- ngay ca khi server restart/deploy lai, phu hop PaaS free tier hay tu dong restart).
+-- ---------------------------------------------------------------------------
+CREATE TABLE staff_sessions (
+  token       CHAR(64) PRIMARY KEY,
+  staff_id    CHAR(36) NOT NULL REFERENCES staff(id),
+  role        VARCHAR(20) NOT NULL,
+  full_name   VARCHAR(150) NOT NULL,
+  expires_at  TIMESTAMP NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_staff_sessions_expires ON staff_sessions (expires_at);
+
+-- ---------------------------------------------------------------------------
 -- services: danh muc thu tuc hanh chinh
 -- ---------------------------------------------------------------------------
 CREATE TABLE services (

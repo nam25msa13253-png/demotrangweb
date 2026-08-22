@@ -160,8 +160,9 @@ async function saveCounterEdit(counterId) {
 }
 
 async function deleteCounter(counterId) {
-  if (!confirm('Xóa quầy này? Nếu còn vé đang chờ, hệ thống sẽ tự động chuyển các vé đó sang quầy khác đang mở cùng lĩnh vực (theo quầy đang ít tải nhất).')) return;
-  const reason = prompt('Lý do xóa quầy (ghi Audit Log):', '') || '';
+  const ok = await ConfirmDialog.confirm('Xóa quầy này? Nếu còn vé đang chờ, hệ thống sẽ tự động chuyển các vé đó sang quầy khác đang mở cùng lĩnh vực (theo quầy đang ít tải nhất).', { danger: true, okLabel: 'Xóa quầy' });
+  if (!ok) return;
+  const reason = (await ConfirmDialog.prompt('Lý do xóa quầy (ghi Audit Log):', '')) || '';
   try {
     const result = await ApiClient.delete(`/api/admin/counters/${counterId}`, { reason });
     showToast(result.movedCount > 0 ? `Đã xóa quầy và chuyển ${result.movedCount} vé sang quầy khác.` : 'Đã xóa quầy.', 'success');
@@ -193,7 +194,8 @@ async function submitCreateCounter() {
 }
 
 async function changeCounterStatus(counterId, status) {
-  const reason = prompt(`Nhập lý do chuyển quầy sang trạng thái ${status}:`, '');
+  const reason = await ConfirmDialog.prompt(`Nhập lý do chuyển quầy sang trạng thái ${status}:`, '');
+  if (reason === null) return;
   try { await ApiClient.post(`/api/admin/counters/${counterId}/status`, { status, reason }); showToast('Đã cập nhật trạng thái quầy.', 'success'); loadDispatch(); loadMonitor(); }
   catch (err) { showToast(err.message, 'error'); }
 }
@@ -369,7 +371,8 @@ async function submitCreateStaff() {
 
 async function toggleStaffActive(staffId, isActive) {
   const verb = isActive ? 'kích hoạt lại' : 'khóa';
-  if (!confirm(`Xác nhận ${verb} tài khoản này?`)) return;
+  const ok = await ConfirmDialog.confirm(`Xác nhận ${verb} tài khoản này?`, { danger: !isActive });
+  if (!ok) return;
   try {
     await ApiClient.post(`/api/admin/staff/${staffId}/active`, { isActive });
     showToast(`Đã ${verb} tài khoản.`, 'success');
@@ -378,7 +381,7 @@ async function toggleStaffActive(staffId, isActive) {
 }
 
 async function resetStaffPassword(staffId) {
-  const password = prompt('Nhập mật khẩu mới (tối thiểu 6 ký tự):', '');
+  const password = await ConfirmDialog.prompt('Nhập mật khẩu mới (tối thiểu 6 ký tự):', '');
   if (!password) return;
   try {
     await ApiClient.put(`/api/admin/staff/${staffId}/password`, { password });
