@@ -3,6 +3,7 @@ const { pool } = require('../config/db');
 const serviceRepo = require('../repositories/serviceRepository');
 const formTemplateRepo = require('../repositories/formTemplateRepository');
 const queueEngine = require('../services/queueEngine');
+const configService = require('../config/configService');
 
 const router = express.Router();
 
@@ -29,9 +30,23 @@ router.get('/services/:id/checklist', async (req, res) => {
   }
 });
 
-// INTENT 1: Wi-Fi QR 1 cham (stub - tra ve payload de FE tu sinh ma QR)
-router.get('/wifi-qr', (req, res) => {
-  res.json({ ssid: 'MOTCUA-FREE-WIFI', password: 'hanhchinh2026', payload: 'WIFI:T:WPA;S:MOTCUA-FREE-WIFI;P:hanhchinh2026;;' });
+// Escape ky tu dac biet theo chuan payload QR Wi-Fi (WIFI:T:...;S:...;P:...;;) - SSID/mat khau
+// co the chua ; , : \ do Admin tu nhap, neu khong escape se lam sai dinh dang QR.
+function escapeWifiField(value) {
+  return String(value).replace(/([\\;,:"])/g, '\\$1');
+}
+
+// INTENT 1: Wi-Fi QR 1 cham. SSID/mat khau lay tu system_configs (Admin cap nhat qua tab
+// "Cau hinh Tham so" cho dung mang Wi-Fi THAT tai co so - server chay tren Render (cloud)
+// nen khong the tu do duoc mang Wi-Fi vat ly cua tru so).
+router.get('/wifi-qr', async (req, res) => {
+  try {
+    const ssid = await configService.get('WIFI_SSID');
+    const password = await configService.get('WIFI_PASSWORD');
+    res.json({ ssid, password, payload: `WIFI:T:WPA;S:${escapeWifiField(ssid)};P:${escapeWifiField(password)};;` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // INTENT 2: Kiem tra dieu kien dinh danh VNeID Muc 2 (stub)

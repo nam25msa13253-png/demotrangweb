@@ -61,10 +61,25 @@ async function addStaffSessionsTable() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_staff_sessions_expires ON staff_sessions (expires_at)`);
 }
 
+async function addWifiConfig() {
+  // SSID/mat khau Wi-Fi hien la hang-code trong kioskRoutes.js - chuyen sang system_configs
+  // de Admin tu cap nhat dung mang Wi-Fi THAT tai co so ngay tren Dashboard (tab "Cau hinh
+  // Tham so"), khong can sua code/deploy lai. Luu y: server chay tren Render (cloud) nen
+  // KHONG the tu do mang Wi-Fi vat ly tai tru so - gia tri nay bat buoc phai duoc nguoi quan
+  // tri nhap tay 1 lan cho dung voi mang that cua co so.
+  await pool.query(`
+    INSERT INTO system_configs (config_key, config_value, value_type, description) VALUES
+      ('WIFI_SSID', 'MOTCUA-FREE-WIFI', 'STRING', 'Ten mang Wi-Fi (SSID) thuc te tai co so - sua theo dung mang that, hien tren man hinh Kiosk'),
+      ('WIFI_PASSWORD', 'hanhchinh2026', 'STRING', 'Mat khau Wi-Fi thuc te tai co so - sua theo dung mat khau that, hien tren man hinh Kiosk')
+    ON CONFLICT (config_key) DO NOTHING
+  `);
+}
+
 async function run() {
   await addSoftDeleteToCounters();
   await addTrichLucHoTichService();
   await addStaffSessionsTable();
+  await addWifiConfig();
 }
 
 module.exports = { run };

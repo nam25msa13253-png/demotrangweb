@@ -196,8 +196,12 @@ async function submitCreateCounter() {
 async function changeCounterStatus(counterId, status) {
   const reason = await ConfirmDialog.prompt(`Nhập lý do chuyển quầy sang trạng thái ${status}:`, '');
   if (reason === null) return;
-  try { await ApiClient.post(`/api/admin/counters/${counterId}/status`, { status, reason }); showToast('Đã cập nhật trạng thái quầy.', 'success'); loadDispatch(); loadMonitor(); }
-  catch (err) { showToast(err.message, 'error'); }
+  try {
+    const result = await ApiClient.post(`/api/admin/counters/${counterId}/status`, { status, reason });
+    showToast(result.movedCount > 0 ? `Đã cập nhật trạng thái quầy và chuyển ${result.movedCount} vé sang quầy khác.` : 'Đã cập nhật trạng thái quầy.', 'success');
+    loadDispatch();
+    loadMonitor();
+  } catch (err) { showToast(err.message, 'error'); }
 }
 async function changeCounterField(counterId, fieldId) {
   if (!fieldId) return;

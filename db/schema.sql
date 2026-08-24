@@ -196,7 +196,9 @@ INSERT INTO system_configs (config_key, config_value, value_type, min_bound, max
   ('EOD_PURGE_HOUR', '17', 'NUMBER', 0, 23, 'Giờ kích hoạt Batch Purge cuối ngày'),
   ('TTS_VOICE', 'vi-VN-Standard-A', 'STRING', NULL, NULL, 'Giọng đọc TTS mặc định (Nữ MB)'),
   ('TTS_SPEED', '1.0', 'NUMBER', 0.5, 2.0, 'Tốc độ đọc loa'),
-  ('TTS_VOLUME', '85', 'NUMBER', 0, 100, 'Âm lượng mặc định (%)');
+  ('TTS_VOLUME', '85', 'NUMBER', 0, 100, 'Âm lượng mặc định (%)'),
+  ('WIFI_SSID', 'MOTCUA-FREE-WIFI', 'STRING', NULL, NULL, 'Tên mạng Wi-Fi (SSID) thực tế tại cơ sở - sửa theo đúng mạng thật, hiện trên màn hình Kiosk'),
+  ('WIFI_PASSWORD', 'hanhchinh2026', 'STRING', NULL, NULL, 'Mật khẩu Wi-Fi thực tế tại cơ sở - sửa theo đúng mật khẩu thật, hiện trên màn hình Kiosk');
 
 -- ---------------------------------------------------------------------------
 -- audit_logs: Nhat Ky Kiem Toan - append-only (rang buoc "khong sua/xoa" duoc dam bao

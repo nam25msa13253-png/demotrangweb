@@ -28,9 +28,13 @@ function clearNoShowTimeout(ticketId) {
   }
 }
 
+// KHONG doc ten cong dan: citizen_name hien chi la ten dat cho ("Khach tai Kiosk", "Cong dan
+// uu tien"...) chu khong phai ten that (he thong khong con thu thap ten/SDT that de bao ve
+// rieng tu, xem [[an PII cong dan tren Admin]]) - doc len se rat ky va vo nghia. Chi doc
+// So thu tu + thu tuc + quay, dung phong cach loa PA hanh chinh cong thuc te.
 function buildAnnouncement(ticket, service, counter) {
   const alias = service.short_alias || service.name;
-  return `Mời công dân ${ticket.citizen_name}, số ${ticket.ticket_number}, làm thủ tục ${alias} đến ${counter.name}`;
+  return `Mời số ${ticket.ticket_number}, làm thủ tục ${alias}, đến ${counter.name}`;
 }
 
 // -----------------------------------------------------------------------------------

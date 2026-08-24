@@ -43,8 +43,8 @@ router.get('/analytics/heatmap', requirePermission('MONITOR'), async (req, res) 
 router.post('/counters/:id/status', requirePermission('DISPATCH'), async (req, res) => {
   try {
     const { status, reason } = req.body;
-    const counter = await counterService.setCounterStatus(Number(req.params.id), status, req.staff.staffId, reason);
-    res.json(counter);
+    const outcome = await counterService.setCounterStatus(Number(req.params.id), status, req.staff.staffId, reason);
+    res.json(outcome);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

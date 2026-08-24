@@ -6,11 +6,37 @@ const auditRepo = require('../repositories/auditRepository');
 const queueEngine = require('./queueEngine');
 const wsHub = require('../websocket/wsHub');
 
+// Dung chung cho ca xoa quay lan chuyen trang thai Tam dung/Dong: chuyen toan bo ve dang
+// QUEUED cua 1 quay sang quay OPEN khac cung linh vuc, theo dung thuat toan Least Queue
+// Depth ma he thong dung khi cap ve moi - dam bao hanh vi nhat quan xuyen suot he thong.
+// Tra ve blockedCount > 0 neu co ve cho ma khong tim duoc quay thay the (goi biet de tu
+// quyet dinh co chan hanh dong hay khong - xoa quay thi nen chan, tam dung/dong thi khong).
+async function reassignQueue(client, { fromCounterId, fieldId, adminId, eventLabel }) {
+  const queue = (await ticketRepo.listQueueForCounter(client, fromCounterId)).filter((t) => t.status === 'QUEUED');
+  if (queue.length === 0) return { movedCount: 0, targetCounterId: null, blockedCount: 0 };
+
+  const target = await counterRepo.findLeastLoadedByField(client, fieldId, fromCounterId);
+  if (!target) return { movedCount: 0, targetCounterId: null, blockedCount: queue.length };
+
+  let tailPos = await ticketRepo.maxQueuePositionForCounter(client, target.id);
+  for (const t of queue) {
+    tailPos += 1;
+    await ticketRepo.reassignCounter(client, t.id, target.id, tailPos);
+    await ticketRepo.insertHistory(client, {
+      ticketId: t.id, fromStatus: 'QUEUED', toStatus: 'QUEUED', counterId: target.id, officerId: adminId,
+      eventData: { event: eventLabel, fromCounterId, toCounterId: target.id }
+    });
+  }
+  return { movedCount: queue.length, targetCounterId: target.id, blockedCount: 0 };
+}
+
 // Mo / Dong / Tam dung quay (1 nut chuyen trang thai khi can bo nghi giai lao, hop dot xuat...)
+// Khi chuyen sang PAUSED/CLOSED ma quay con ve dang QUEUED, tu dong chuyen sang quay khac
+// dang mo cung linh vuc (khong de cong dan cho vo thoi han o 1 quay da tam dung/dong).
 async function setCounterStatus(counterId, status, adminId, reason) {
   if (!['OPEN', 'PAUSED', 'CLOSED'].includes(status)) throw new Error('Trang thai quay khong hop le.');
 
-  const result = await withTransaction(async (client) => {
+  const outcome = await withTransaction(async (client) => {
     const counter = await counterRepo.lockById(client, counterId);
     if (!counter) throw new Error('Quay khong ton tai.');
     const updated = await counterRepo.updateStatus(client, counterId, status);
@@ -19,16 +45,28 @@ async function setCounterStatus(counterId, status, adminId, reason) {
       reason: reason || `Chuyen trang thai sang ${status}`,
       payload: { from: counter.status, to: status }
     });
-    return updated;
+
+    let reassign = { movedCount: 0, targetCounterId: null };
+    if (status !== 'OPEN') {
+      reassign = await reassignQueue(client, {
+        fromCounterId: counterId, fieldId: counter.field_id, adminId,
+        eventLabel: status === 'PAUSED' ? 'COUNTER_PAUSED_REASSIGN' : 'COUNTER_CLOSED_REASSIGN'
+      });
+    }
+
+    return { counter: updated, movedCount: reassign.movedCount, targetCounterId: reassign.targetCounterId };
   });
 
   // Neu Admin dong/tam dung quay dang co ve CALLING, huy dem nguoc Timeout dang cho.
-  if (status !== 'OPEN' && result.active_ticket_id) {
-    queueEngine.clearNoShowTimeout(result.active_ticket_id);
+  if (status !== 'OPEN' && outcome.counter.active_ticket_id) {
+    queueEngine.clearNoShowTimeout(outcome.counter.active_ticket_id);
   }
 
-  wsHub.broadcast(wsHub.EVENTS.COUNTER_STATUS_CHANGED, { counter: result });
-  return result;
+  wsHub.broadcast(wsHub.EVENTS.COUNTER_STATUS_CHANGED, { counter: outcome.counter });
+  if (outcome.targetCounterId) {
+    wsHub.broadcast(wsHub.EVENTS.QUEUE_REBALANCED, { fromCounterId: counterId, toCounterId: outcome.targetCounterId, movedCount: outcome.movedCount });
+  }
+  return outcome;
 }
 
 // Doi linh vuc chuyen trach cua quay (VD: chuyen Quay 01 tu Ho tich sang ho tro Dat dai).
@@ -98,23 +136,11 @@ async function deleteCounter(counterId, adminId, reason) {
       throw new Error('Khong the xoa quay dang xu ly ve. Vui long Hoan tat/Tam dung truoc.');
     }
 
-    const queue = (await ticketRepo.listQueueForCounter(client, counterId)).filter((t) => t.status === 'QUEUED');
-    let target = null;
-    if (queue.length > 0) {
-      target = await counterRepo.findLeastLoadedByField(client, counter.field_id, counterId);
-      if (!target) {
-        throw new Error(`Khong the xoa: day la quay dang mo duy nhat cua linh vuc nay va con ${queue.length} ve dang cho. Vui long mo quay khac cung linh vuc truoc, hoac dung "Dong" thay vi xoa.`);
-      }
-
-      let tailPos = await ticketRepo.maxQueuePositionForCounter(client, target.id);
-      for (const t of queue) {
-        tailPos += 1;
-        await ticketRepo.reassignCounter(client, t.id, target.id, tailPos);
-        await ticketRepo.insertHistory(client, {
-          ticketId: t.id, fromStatus: 'QUEUED', toStatus: 'QUEUED', counterId: target.id, officerId: adminId,
-          eventData: { event: 'COUNTER_DELETED_REASSIGN', fromCounterId: counterId, toCounterId: target.id }
-        });
-      }
+    const reassign = await reassignQueue(client, {
+      fromCounterId: counterId, fieldId: counter.field_id, adminId, eventLabel: 'COUNTER_DELETED_REASSIGN'
+    });
+    if (reassign.blockedCount > 0) {
+      throw new Error(`Khong the xoa: day la quay dang mo duy nhat cua linh vuc nay va con ${reassign.blockedCount} ve dang cho. Vui long mo quay khac cung linh vuc truoc, hoac dung "Dong" thay vi xoa.`);
     }
 
     const archivedCode = `${counter.code}-DEL-${Date.now()}`;
@@ -123,10 +149,10 @@ async function deleteCounter(counterId, adminId, reason) {
     await auditRepo.insertLog(client, {
       adminId, action: 'COUNTER_DELETED', targetType: 'COUNTER', targetId: counterId,
       reason: reason || 'Xoa quay',
-      payload: { code: counter.code, name: counter.name, movedTicketCount: queue.length, movedToCounterId: target ? target.id : null }
+      payload: { code: counter.code, name: counter.name, movedTicketCount: reassign.movedCount, movedToCounterId: reassign.targetCounterId }
     });
 
-    return { movedCount: queue.length, targetCounterId: target ? target.id : null };
+    return { movedCount: reassign.movedCount, targetCounterId: reassign.targetCounterId };
   });
 
   wsHub.broadcast(wsHub.EVENTS.COUNTER_STATUS_CHANGED, { counterId, deleted: true, ...outcome });
