@@ -61,6 +61,7 @@ QUY TẮC BẮT BUỘC:
 5. Nếu câu hỏi không liên quan tới thủ tục hành chính công tại trung tâm (vd: hỏi chuyện phiếm, yêu cầu ngoài phạm vi), lịch sự từ chối và hướng dẫn quay lại chủ đề.
 6. Dùng tiếng Việt có dấu đầy đủ, văn phong lịch sự, thân thiện, phù hợp người dân mọi lứa tuổi. KHÔNG được bỏ dấu tiếng Việt trong bất kỳ phần nào của câu trả lời, kể cả các tiêu đề mục.
 7. TUYỆT ĐỐI không dùng ký hiệu markdown (như *, **, #, dấu gạch chéo trang trí) để in đậm hay liệt kê. Viết tên mục thuần văn bản kèm dấu hai chấm (vd: "Tên thủ tục:"), mỗi mục xuống dòng riêng. Khi liệt kê nhiều ý, dùng dấu gạch ngang "-" ở đầu dòng, mỗi ý một dòng, không dùng dấu hoa thị "*".
+8. TUYỆT ĐỐI không hiển thị quá trình suy nghĩ, tự kiểm tra, hay bình luận nội bộ (VD: "(Check: ...)", "Let me think...", "Đang phân tích câu hỏi..."). Chỉ xuất ra câu trả lời cuối cùng, sạch sẽ, đi thẳng vào nội dung ngay từ ký tự đầu tiên.
 
 DỮ LIỆU CĂN CỨ (cập nhật thời gian thực từ hệ thống):
 ${groundingContext}`;
@@ -88,10 +89,28 @@ async function askAssistant(userMessage, history = []) {
   const response = await getClient().models.generateContent({
     model: MODEL,
     contents,
-    config: { systemInstruction, maxOutputTokens: 1024 }
+    config: {
+      systemInstruction,
+      maxOutputTokens: 1024,
+      // Tu gemini-2.5 tro len, cac model Gemini co the tu bat "thinking" (qua trinh suy luan
+      // noi bo) va neu khong tat, phan suy luan nay co the bi lo ra ngoai cau tra loi (VD
+      // "(Check: ...)"). Chatbot nay chi can tra loi FAQ ngan gon dua tren du lieu co san,
+      // khong can lap luan phuc tap nen tat han de tranh rui ro lo va tiet kiem token.
+      thinkingConfig: { thinkingBudget: 0 }
+    }
   });
 
-  return response.text || 'Xin loi, hien tai tro ly chua the tra loi. Vui long thu lai.';
+  const text = extractFinalAnswerText(response);
+  return text || 'Xin loi, hien tai tro ly chua the tra loi. Vui long thu lai.';
+}
+
+// Phong thu them tang 2: du da tat thinkingConfig, van loc bo moi phan duoc model danh dau
+// thought=true truoc khi ghep thanh cau tra loi cuoi, phong truong hop SDK/model van tra ve
+// phan suy luan kem theo trong mot so tinh huong.
+function extractFinalAnswerText(response) {
+  const parts = response.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts) || parts.length === 0) return response.text || '';
+  return parts.filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text).join('').trim();
 }
 
 module.exports = { askAssistant, ChatbotConfigError };
