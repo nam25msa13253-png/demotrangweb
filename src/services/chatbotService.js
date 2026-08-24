@@ -89,24 +89,19 @@ async function askAssistant(userMessage, history = []) {
   const response = await getClient().models.generateContent({
     model: MODEL,
     contents,
-    config: {
-      systemInstruction,
-      maxOutputTokens: 1024,
-      // Tu gemini-2.5 tro len, cac model Gemini co the tu bat "thinking" (qua trinh suy luan
-      // noi bo) va neu khong tat, phan suy luan nay co the bi lo ra ngoai cau tra loi (VD
-      // "(Check: ...)"). Chatbot nay chi can tra loi FAQ ngan gon dua tren du lieu co san,
-      // khong can lap luan phuc tap nen tat han de tranh rui ro lo va tiet kiem token.
-      thinkingConfig: { thinkingBudget: 0 }
-    }
+    config: { systemInstruction, maxOutputTokens: 1024 }
+    // Luu y: KHONG dung thinkingConfig o day - gemini-3.6-flash tra ve loi 400
+    // "Request contains an invalid argument" khi truyen thinkingConfig.thinkingBudget (co the
+    // model nay chua/khong ho tro tham so nay qua @google/genai). Xu ly viec lo "thinking" ra
+    // cau tra loi chi bang prompt (quy tac 8 o tren) + loc phan thought=true ben duoi.
   });
 
   const text = extractFinalAnswerText(response);
   return text || 'Xin loi, hien tai tro ly chua the tra loi. Vui long thu lai.';
 }
 
-// Phong thu them tang 2: du da tat thinkingConfig, van loc bo moi phan duoc model danh dau
-// thought=true truoc khi ghep thanh cau tra loi cuoi, phong truong hop SDK/model van tra ve
-// phan suy luan kem theo trong mot so tinh huong.
+// Loc bo moi phan duoc model danh dau thought=true (qua trinh suy luan noi bo) truoc khi
+// ghep thanh cau tra loi cuoi cung hien thi cho nguoi dung.
 function extractFinalAnswerText(response) {
   const parts = response.candidates?.[0]?.content?.parts;
   if (!Array.isArray(parts) || parts.length === 0) return response.text || '';
