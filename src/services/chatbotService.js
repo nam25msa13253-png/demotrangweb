@@ -2,7 +2,9 @@ const { GoogleGenAI } = require('@google/genai');
 const { pool } = require('../config/db');
 const serviceRepo = require('../repositories/serviceRepository');
 
-const MODEL = 'gemini-2.5-flash';
+// gemini-2.5-flash da bi Google ngung ho tro tai khoan moi (loi 404 "no longer available").
+// Chuyen sang gemini-3.6-flash theo dung khuyen nghi tra ve tu chinh API cua Google.
+const MODEL = 'gemini-3.6-flash';
 const MAX_HISTORY_TURNS = 6; // gioi han ngu canh gui len de kiem soat chi phi
 
 // Loi rieng cho truong hop chua cau hinh API key - nem ra som, ro rang, thay vi de SDK
