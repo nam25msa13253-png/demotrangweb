@@ -175,8 +175,10 @@
     if (el) el.remove();
   }
 
-  async function sendMessage() {
-    const text = input.value.trim();
+  // presetText: cho phep trang chu (VD nut Thao tac nhanh tren Kiosk) tu goi 1 cau hoi dinh
+  // san thay vi nguoi dung phai tu go, xem window.ChatbotWidget o cuoi file.
+  async function sendMessage(presetText) {
+    const text = (presetText !== undefined ? presetText : input.value).trim();
     if (!text || isSending) return;
 
     suggestionsBox.remove(); // chi hien goi y ban dau, an di sau cau hoi dau tien
@@ -220,4 +222,11 @@
     sessionStorage.setItem('chatbotAutoOpened', '1');
     setTimeout(() => togglePanel(true), 1200);
   }
+
+  // API cong khai toi thieu de cac trang khac (VD nut Thao tac nhanh tren Kiosk) tu mo panel
+  // va gui san 1 cau hoi huong dan, khong can dong lai voi cach widget dung DOM noi bo.
+  window.ChatbotWidget = {
+    open: () => togglePanel(true),
+    ask: (message) => { togglePanel(true); sendMessage(message); }
+  };
 })();

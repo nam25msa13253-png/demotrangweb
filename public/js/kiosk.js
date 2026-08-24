@@ -182,8 +182,15 @@ function showMissingDocsGuide(result) {
   openModal('formTemplateModal');
 }
 
+// Mo them bang chat AI voi 1 cau hoi huong dan dinh san, song song voi modal chuc nang that
+// (khong thay the) - dung cho 3 nut Thao tac nhanh o man hinh chu Kiosk.
+function askChatbotGuide(question) {
+  if (window.ChatbotWidget) window.ChatbotWidget.ask(question);
+}
+
 // ---- Wi-Fi QR ----
 async function openWifiModal() {
+  askChatbotGuide('Hướng dẫn tôi kết nối Wi-Fi miễn phí tại đây.');
   try {
     const info = await ApiClient.get('/api/kiosk/wifi-qr');
     document.getElementById('wifiInfo').innerHTML = `Tên mạng (SSID): <b>${info.ssid}</b><br/>Mật khẩu: <b>${info.password}</b>`;
@@ -192,7 +199,11 @@ async function openWifiModal() {
 }
 
 // ---- DVC / VNeID ----
-function openDvcModal() { document.getElementById('dvcResult').innerHTML = ''; openModal('dvcModal'); }
+function openDvcModal() {
+  askChatbotGuide('Hướng dẫn tôi cách nộp hồ sơ trực tuyến qua Dịch vụ công (DVC).');
+  document.getElementById('dvcResult').innerHTML = '';
+  openModal('dvcModal');
+}
 async function checkVneid() {
   const level = document.getElementById('vneidLevel').value;
   try {
@@ -210,7 +221,10 @@ async function checkVneid() {
 }
 
 // ---- Re-entry QR ----
-function openReentryModal() { openModal('reentryModal'); }
+function openReentryModal() {
+  askChatbotGuide('Hướng dẫn tôi cách quét mã QR để bổ sung hồ sơ còn thiếu.');
+  openModal('reentryModal');
+}
 async function submitReentry() {
   const token = document.getElementById('reentryTokenInput').value.trim();
   if (!token) return showToast('Vui lòng nhập mã Re-entry.', 'error');
