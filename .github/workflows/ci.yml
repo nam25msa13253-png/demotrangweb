@@ -1,0 +1,23 @@
+name: CI
+
+# Chay tu dong tren may chu GitHub moi lan push/tao Pull Request vao nhanh main - khong lien
+# quan/khong anh huong gi den viec Render deploy (Render chi doc code + render.yaml, khong
+# biet gi ve workflow nay). Muc dich: bat loi som (VD sua code lam hong 1 nghiep vu quan
+# trong) truoc khi no len duoc production, thay vi phai cho nguoi dung phat hien.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.11.0'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
