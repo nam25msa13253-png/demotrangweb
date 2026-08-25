@@ -1,6 +1,7 @@
 const { GoogleGenAI } = require('@google/genai');
 const { pool } = require('../config/db');
 const serviceRepo = require('../repositories/serviceRepository');
+const kioskFeatureGuide = require('./kioskFeatureGuide');
 
 // gemini-2.5-flash da bi Google ngung ho tro tai khoan moi (loi 404 "no longer available").
 // Chuyen sang gemini-3.6-flash theo dung khuyen nghi tra ve tu chinh API cua Google.
@@ -47,14 +48,7 @@ async function buildGroundingContext() {
     `- ${c.code} (${c.field_name}): ${c.status}${c.status === 'OPEN' ? `, đang có ${c.waiting_count} người chờ` : ''}.`
   ).join('\n');
 
-  // Huong dan tinh nang co dinh cua Kiosk (khong doi theo DB) - de AI co du lieu "can cu" that
-  // khi cong dan bam nut Thao tac nhanh (Wi-Fi/DVC/Quet ma) va hoi AI huong dan, thay vi AI
-  // khong co du lieu gi ve chinh cac tinh nang cua kiosk va phai tu bia hoac tu choi tra loi.
-  const kioskGuide = `- Kết nối Wi-Fi: Bấm nút "Kết nối Wi-Fi" ở màn hình chính Kiosk để xem tên mạng (SSID) và mật khẩu Wi-Fi miễn phí của cơ sở, sau đó vào phần cài đặt Wi-Fi trên điện thoại/máy tính và nhập đúng thông tin đó.
-- Nộp trực tuyến qua Dịch vụ công (DVC): Bấm nút "Nộp trực tuyến (DVC)", chọn đúng mức định danh điện tử VNeID hiện tại của bạn. Nếu đã có VNeID mức 2, hệ thống sẽ hiện các bước nộp hồ sơ trực tuyến qua Cổng dịch vụ công quốc gia. Nếu chỉ có mức 1, cần nộp trực tiếp tại quầy.
-- Quét mã Bổ sung hồ sơ (Re-entry): Dùng khi cán bộ quầy đã yêu cầu bổ sung giấy tờ còn thiếu và cấp cho bạn 1 mã QR Re-entry. Sau khi chuẩn bị đủ giấy tờ, bấm nút "Quét mã Bổ sung hồ sơ" ở màn hình chính, quét hoặc nhập mã đó để được xếp trở lại hàng đợi ưu tiên ngay, không phải lấy số mới từ đầu.`;
-
-  return `DANH MỤC THỦ TỤC HÀNH CHÍNH HIỆN CÓ:\n${serviceLines}\n\nTRẠNG THÁI QUẦY GIAO DỊCH HIỆN TẠI:\n${counterLines}\n\nHƯỚNG DẪN SỬ DỤNG CÁC TÍNH NĂNG TRÊN KIOSK:\n${kioskGuide}`;
+  return `DANH MỤC THỦ TỤC HÀNH CHÍNH HIỆN CÓ:\n${serviceLines}\n\nTRẠNG THÁI QUẦY GIAO DỊCH HIỆN TẠI:\n${counterLines}\n\nHƯỚNG DẪN SỬ DỤNG CÁC TÍNH NĂNG TRÊN KIOSK:\n${kioskFeatureGuide.buildGuideText()}`;
 }
 
 function buildSystemPrompt(groundingContext) {

@@ -1,5 +1,6 @@
 const express = require('express');
 const chatbotService = require('../services/chatbotService');
+const ruleBasedAssistant = require('../services/ruleBasedAssistant');
 
 const router = express.Router();
 
@@ -25,8 +26,15 @@ router.post('/ask', async (req, res) => {
 
   try {
     const { message, history } = req.body;
+
+    // Uu tien bo tra loi Rule-based (mien phi, khong gioi han, khong bao gio bia): chi khi
+    // KHONG nhan dien duoc mau cau hoi pho bien nao (tryAnswer tra ve null) moi goi Gemini API
+    // (linh hoat hon voi cau hoi dien dat tu do, nhung ton phi/co gioi han).
+    const ruleReply = await ruleBasedAssistant.tryAnswer(message);
+    if (ruleReply) return res.json({ reply: ruleReply, source: 'rule' });
+
     const reply = await chatbotService.askAssistant(message, history);
-    res.json({ reply });
+    res.json({ reply, source: 'ai' });
   } catch (err) {
     if (err instanceof chatbotService.ChatbotConfigError) {
       console.error('[chatbot]', err.message);
