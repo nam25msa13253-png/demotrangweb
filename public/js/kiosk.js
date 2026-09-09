@@ -1,7 +1,10 @@
 // Khung chat lay so cua Kiosk - thay the 3 man hinh rieng biet (tim thu tuc / doi chieu giay to /
 // nhan so) truoc day bang MOT hoi thoai lien tuc, dieu khien hoan toan bang van ban tu do (khong
-// checkbox/form co dinh cho 3 buoc nghiep vu chinh). Cac nut Thao tac nhanh (Wi-Fi/DVC/Re-entry)
-// va widget chatbot FAQ o goc man hinh (chatbot.js) van giu nguyen, khong lien quan file nay.
+// checkbox/form co dinh cho 3 buoc nghiep vu chinh). 3 nut Thao tac nhanh (Wi-Fi/DVC/Re-entry)
+// KHONG con mo modal rieng nua - chung gui thang cau hoi vao CHINH khung chat nay va duoc tra loi
+// ngay trong hoi thoai (xem quickAskWifi/quickAskDvc/quickAskReentry va cac handleXxx ben duoi).
+// Widget chatbot FAQ o goc man hinh (chatbot.js) van giu nguyen rieng, dung cho cau hoi tu do
+// khac (thu tuc/lich su hoi thoai chung), khong lien quan luong nghiep vu trong file nay.
 
 // ---- Rung nhe khi cham man hinh cam ung ----
 function tapFeedback() {
@@ -9,7 +12,7 @@ function tapFeedback() {
 }
 
 function closeAllModals() {
-  ['wifiModal', 'dvcModal', 'reentryModal', 'formTemplateModal'].forEach(closeModal);
+  closeModal('formTemplateModal');
 }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
@@ -51,6 +54,16 @@ const kioskChatSendBtn = document.getElementById('kioskChatSendBtn');
 let kioskStage = 'FIND_SERVICE';
 let kioskCandidates = [];
 let kioskMatchedChecklist = null; // { service, requiredDocs, formTemplate }
+
+// Hanh dong phu (Wi-Fi/DVC/Re-entry) doc lap voi may trang thai lay so o tren - cong dan co the
+// hoi cac viec nay bat ky luc nao ma khong lam mat tien trinh lay so dang do. null = khong co
+// hanh dong phu nao dang cho tra loi tiep theo.
+let kioskPendingAction = null; // null | 'AWAIT_VNEID_LEVEL' | 'AWAIT_REENTRY_TOKEN'
+const WIFI_SERVICE_URL = 'http://localhost:5000/api/current-wifi'; // Dich vu cuc bo tren may Kiosk, xem wifi-local-service/
+const WIFI_TRIGGER_WORDS = ['wifi', 'wi-fi', 'wi fi', 'mang wifi', 'ket noi mang'];
+const DVC_TRIGGER_WORDS = ['dvc', 'dich vu cong', 'nop truc tuyen', 'vneid', 'nop online', 'nop qua mang'];
+const REENTRY_TRIGGER_WORDS = ['bo sung ho so', 'quet ma', 're-entry', 'reentry', 'ma qr', 'quet qr'];
+let qrLibPromise = null;
 
 function unaccentVi(str) {
   return String(str).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
@@ -110,8 +123,28 @@ async function handleKioskMessage(rawText) {
 
   appendKioskRow(text, 'user');
   kioskChatInput.value = '';
+  const normalized = normalizeVi(text);
 
-  if (kioskStage !== 'DONE' && CANCEL_PATTERNS.test(normalizeVi(text))) {
+  // "Huy/doi thu tuc" luon co hieu luc ngay, ke ca dang cho tra loi 1 hanh dong phu (VD dang cho
+  // muc VNeID/ma Re-entry) - tranh cong dan bi ket trong 1 vong hoi-dap khong co loi thoat.
+  if (kioskPendingAction && CANCEL_PATTERNS.test(normalized)) {
+    kioskPendingAction = null;
+    appendBotText('Đã huỷ. Bạn cần hỗ trợ gì tiếp theo?');
+    return;
+  }
+
+  // Tu khoa the hien y dinh ro rang (VD bam thang nut Thao tac nhanh) luon duoc uu tien truoc,
+  // ke ca dang co 1 hanh dong phu dang cho tra loi - tranh cong dan bam nut Wi-Fi ma bi "nuot"
+  // vao cau hoi VNeID/Re-entry dang do dang. Chi khi KHONG khop tu khoa nao moi xet den
+  // kioskPendingAction (nghia la tin nhan hien tai co ve la cau tra loi ngan cho cau hoi truoc).
+  if (WIFI_TRIGGER_WORDS.some((k) => normalized.includes(k))) return handleWifiRequest();
+  if (DVC_TRIGGER_WORDS.some((k) => normalized.includes(k))) return handleDvcRequest();
+  if (REENTRY_TRIGGER_WORDS.some((k) => normalized.includes(k))) return handleReentryRequest();
+
+  if (kioskPendingAction === 'AWAIT_VNEID_LEVEL') return handleVneidAnswer(text);
+  if (kioskPendingAction === 'AWAIT_REENTRY_TOKEN') return handleReentryAnswer(text);
+
+  if (kioskStage !== 'DONE' && CANCEL_PATTERNS.test(normalized)) {
     kioskStage = 'FIND_SERVICE';
     kioskCandidates = [];
     kioskMatchedChecklist = null;
@@ -317,58 +350,136 @@ function sendKioskChat() {
 }
 kioskChatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendKioskChat(); });
 
-// Mo them bang chat AI FAQ voi 1 cau hoi huong dan dinh san, song song voi modal chuc nang that
-// (khong thay the) - dung cho 3 nut Thao tac nhanh o man hinh chu Kiosk. Doc lap voi khung chat
-// lay so o tren (khung nay dan dat nghiep vu that, con day chi la tro ly hoi-dap huong dan).
-function askChatbotGuide(question) {
-  if (window.ChatbotWidget) window.ChatbotWidget.ask(question);
+// Bam nut Thao tac nhanh = gui thang cau hoi tuong ung vao chinh khung chat nay (hien ra nhu
+// cong dan vua go cau do), tai su dung dung logic nhan dien tu khoa trong handleKioskMessage.
+function quickAskWifi() { tapFeedback(); handleKioskMessage('Tôi muốn kết nối Wi-Fi'); }
+function quickAskDvc() { tapFeedback(); handleKioskMessage('Tôi muốn nộp hồ sơ trực tuyến qua DVC'); }
+function quickAskReentry() { tapFeedback(); handleKioskMessage('Tôi cần bổ sung hồ sơ'); }
+
+function fetchWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-// ---- Wi-Fi QR ----
-async function openWifiModal() {
-  askChatbotGuide('Hướng dẫn tôi kết nối Wi-Fi miễn phí tại đây.');
+// Tai thu vien sinh QR (qrcodejs) qua CDN, chi 1 lan.
+function loadQrLibrary() {
+  if (window.QRCode) return Promise.resolve();
+  if (qrLibPromise) return qrLibPromise;
+  qrLibPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Khong tai duoc thu vien QR'));
+    document.head.appendChild(script);
+  });
+  return qrLibPromise;
+}
+
+// ---- Wi-Fi: uu tien Dich vu Wi-Fi cuc bo tren may Kiosk (SSID/mat khau THAT dang ket noi, xem
+// wifi-local-service/README.md); neu dich vu do chua chay tren may nay, fallback sang cau hinh
+// WIFI_SSID/WIFI_PASSWORD Admin da nhap tay trong he thong.
+async function handleWifiRequest() {
+  appendTyping();
+  let ssid = null, password = '', qrString = null;
+
   try {
-    const info = await ApiClient.get('/api/kiosk/wifi-qr');
-    document.getElementById('wifiInfo').innerHTML = `Tên mạng (SSID): <b>${info.ssid}</b><br/>Mật khẩu: <b>${info.password}</b>`;
-    openModal('wifiModal');
-  } catch (err) { showToast(err.message, 'error'); }
+    const res = await fetchWithTimeout(WIFI_SERVICE_URL, 2500);
+    const data = await res.json();
+    if (data.success) { ssid = data.ssid; password = data.password || ''; qrString = data.qrString; }
+  } catch (e) { /* Dich vu cuc bo chua chay tren may nay - se fallback ben duoi */ }
+
+  if (!ssid) {
+    try {
+      const info = await ApiClient.get('/api/kiosk/wifi-qr');
+      if (info.ssid) { ssid = info.ssid; password = info.password || ''; qrString = info.payload; }
+    } catch (e) { /* Bo qua, se chi hien loi chung ben duoi */ }
+  }
+
+  removeTyping();
+  if (!ssid) {
+    appendBotText('Xin lỗi, hiện chưa có thông tin Wi-Fi khả dụng. Vui lòng liên hệ quầy hỗ trợ.');
+    return;
+  }
+
+  const row = appendKioskRow(
+    `<p style="margin:0 0 8px;">Kết nối Wi-Fi: quét mã QR bên dưới hoặc nhập tay SSID/mật khẩu.</p>
+     <div class="kiosk-chat-wifi-row"><span>Tên mạng (SSID)</span><b>${escapeHtml(ssid)}</b></div>
+     <div class="kiosk-chat-wifi-row">
+       <span>Mật khẩu</span>
+       <b>${escapeHtml(password || '(mạng mở, không cần mật khẩu)')}</b>
+       ${password ? '<button type="button" class="kiosk-chat-wifi-copy" id="kioskWifiCopyBtn">Sao chép</button>' : ''}
+     </div>
+     <div class="kiosk-chat-wifi-qr" id="kioskWifiQr"></div>`,
+    'bot'
+  );
+
+  const copyBtn = row.querySelector('#kioskWifiCopyBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(password);
+        copyBtn.textContent = 'Đã sao chép!';
+        setTimeout(() => { copyBtn.textContent = 'Sao chép'; }, 1500);
+      } catch (e) { /* Clipboard API co the bi chan - bo qua */ }
+    });
+  }
+
+  if (qrString) {
+    try {
+      await loadQrLibrary();
+      new window.QRCode(row.querySelector('#kioskWifiQr'), { text: qrString, width: 150, height: 150 });
+    } catch (e) { /* Khong tai duoc thu vien QR - SSID/mat khau van con hien de doc thu cong */ }
+  }
 }
 
 // ---- DVC / VNeID ----
-function openDvcModal() {
-  askChatbotGuide('Hướng dẫn tôi cách nộp hồ sơ trực tuyến qua Dịch vụ công (DVC).');
-  document.getElementById('dvcResult').innerHTML = '';
-  openModal('dvcModal');
+async function handleDvcRequest() {
+  kioskPendingAction = 'AWAIT_VNEID_LEVEL';
+  appendBotText('Để nộp hồ sơ trực tuyến qua Dịch vụ công (DVC), cho tôi biết mức định danh điện tử VNeID hiện tại của bạn là Mức 1 hay Mức 2? (Trả lời "1" hoặc "2")');
 }
-async function checkVneid() {
-  const level = document.getElementById('vneidLevel').value;
+async function handleVneidAnswer(text) {
+  const level = /2/.test(text) ? 2 : /1/.test(text) ? 1 : null;
+  if (!level) {
+    appendBotText('Xin lỗi, vui lòng trả lời "Mức 1" hoặc "Mức 2".');
+    return;
+  }
+  kioskPendingAction = null;
+  appendTyping();
   try {
     const result = await ApiClient.post('/api/kiosk/dvc/check-vneid', { vneidLevel: level });
+    removeTyping();
     if (result.eligible) {
-      document.getElementById('dvcResult').innerHTML = `
-        <div class="location-box">
-          <b>✅ Đủ điều kiện nộp trực tuyến!</b>
-          <ol>${result.guideSteps.map((s) => `<li>${s}</li>`).join('')}</ol>
-        </div>`;
+      appendBotText('Bạn đủ điều kiện nộp trực tuyến! Các bước thực hiện:\n' + result.guideSteps.map((s, i) => `${i + 1}. ${s}`).join('\n'));
     } else {
-      document.getElementById('dvcResult').innerHTML = `<div class="missing-list">${result.message}</div>`;
+      appendBotText(result.message);
     }
-  } catch (err) { showToast(err.message, 'error'); }
+  } catch (err) {
+    removeTyping();
+    appendBotText('Không kiểm tra được điều kiện, vui lòng thử lại: ' + err.message);
+  }
 }
 
-// ---- Re-entry QR ----
-function openReentryModal() {
-  askChatbotGuide('Hướng dẫn tôi cách quét mã QR để bổ sung hồ sơ còn thiếu.');
-  openModal('reentryModal');
+// ---- Re-entry QR (nhap tay ma trong chat - luong quet QR that qua URL ?reentry= van xu ly rieng
+// o initFromUrl ben duoi, khong doi) ----
+async function handleReentryRequest() {
+  kioskPendingAction = 'AWAIT_REENTRY_TOKEN';
+  appendBotText('Vui lòng nhập mã Re-entry được cán bộ cấp cho bạn khi yêu cầu bổ sung hồ sơ:');
 }
-async function submitReentry() {
-  const token = document.getElementById('reentryTokenInput').value.trim();
-  if (!token) return showToast('Vui lòng nhập mã Re-entry.', 'error');
+async function handleReentryAnswer(text) {
+  kioskPendingAction = null;
+  const token = text.trim();
+  if (!token) { appendBotText('Vui lòng nhập mã Re-entry hợp lệ.'); kioskPendingAction = 'AWAIT_REENTRY_TOKEN'; return; }
+
+  appendTyping();
   try {
     const result = await ApiClient.post('/api/kiosk/reentry-scan', { token });
-    showToast(`Đã chèn STT ${result.ticket.ticket_number} trở lại hàng đợi ưu tiên.`, 'success');
-    closeModal('reentryModal');
-  } catch (err) { showToast(err.message, 'error'); }
+    removeTyping();
+    appendBotText(`Đã xác nhận! Số thứ tự ${result.ticket.ticket_number} của bạn đã được chèn trở lại hàng đợi ưu tiên. Vui lòng theo dõi Bảng LED/Loa.`);
+  } catch (err) {
+    removeTyping();
+    appendBotText('Mã Re-entry không hợp lệ hoặc đã hết hạn: ' + err.message);
+  }
 }
 
 // Auto-xu ly khi mo bang URL ?reentry=<token> (mo phong quet QR that) hoac

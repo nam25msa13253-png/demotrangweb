@@ -78,6 +78,12 @@
   .kiosk-chat-input-row { display: flex; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--color-border); }
   .kiosk-chat-input-row input { flex: 1; font-size: 1.1rem; padding: 16px; border-radius: 12px; border: 1px solid var(--color-border); }
   .kiosk-chat-input-row input:disabled { background: #f1f5f9; }
+
+  /* The Wi-Fi tra loi ngay trong khung chat (thay cho modal Wi-Fi truoc day) */
+  .kiosk-chat-wifi-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.95rem; margin: 8px 0; flex-wrap: wrap; }
+  .kiosk-chat-wifi-copy { border: none; background: var(--color-primary); color: #fff; border-radius: 6px; padding: 5px 12px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
+  .kiosk-chat-wifi-copy:hover { background: var(--color-primary-dark); }
+  .kiosk-chat-wifi-qr { display: flex; justify-content: center; margin: 10px 0; background: #fff; padding: 10px; border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -97,13 +103,15 @@
     <h1>Xin chào Quý công dân 👋</h1>
     <p class="text-muted">Trò chuyện với trợ lý để tìm thủ tục và lấy số thứ tự</p>
   </div>
+  <!-- Bam 1 nut = gui thang cau hoi tuong ung vao khung chat ben duoi (khong mo modal rieng nua) -->
   <div class="quick-actions">
-    <button class="btn btn-outline" onclick="openWifiModal()">📶 Kết nối Wi-Fi</button>
-    <button class="btn btn-outline" onclick="openDvcModal()">📱 Nộp trực tuyến (DVC)</button>
-    <button class="btn btn-outline" onclick="openReentryModal()">🔄 Quét mã Bổ sung hồ sơ</button>
+    <button class="btn btn-outline" onclick="quickAskWifi()">📶 Kết nối Wi-Fi</button>
+    <button class="btn btn-outline" onclick="quickAskDvc()">📱 Nộp trực tuyến (DVC)</button>
+    <button class="btn btn-outline" onclick="quickAskReentry()">🔄 Quét mã Bổ sung hồ sơ</button>
   </div>
 
-  <!-- ================= KHUNG CHAT LAY SO (thay the 3 man hinh rieng biet truoc day) ================= -->
+  <!-- ================= KHUNG CHAT LAY SO (thay the 3 man hinh rieng biet truoc day, kiem luon
+       vai tro huong dan Wi-Fi/DVC/Bo sung ho so - khong con modal rieng cho 3 viec nay nua) ================= -->
   <section class="kiosk-chat-panel">
     <div class="kiosk-chat-messages" id="kioskChatMessages"></div>
     <div class="kiosk-chat-input-row">
@@ -111,43 +119,6 @@
       <button class="btn btn-primary" id="kioskChatSendBtn" onclick="sendKioskChat()">Gửi</button>
     </div>
   </section>
-</div>
-
-<!-- ================= MODAL: WIFI ================= -->
-<div id="wifiModal" class="modal-overlay hidden">
-  <div class="modal-box text-center">
-    <h2>📶 Kết nối Wi-Fi miễn phí</h2>
-    <p id="wifiInfo" class="text-muted"></p>
-    <button class="btn btn-outline mt-16" onclick="closeModal('wifiModal')">Đóng</button>
-  </div>
-</div>
-
-<!-- ================= MODAL: DVC / VNeID ================= -->
-<div id="dvcModal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <h2>📱 Nộp hồ sơ trực tuyến (DVC)</h2>
-    <div class="field">
-      <label>Mức định danh VNeID hiện tại</label>
-      <select id="vneidLevel">
-        <option value="1">Mức 1</option>
-        <option value="2">Mức 2</option>
-      </select>
-    </div>
-    <button class="btn btn-primary" onclick="checkVneid()">Kiểm tra điều kiện</button>
-    <div id="dvcResult" class="mt-16"></div>
-    <button class="btn btn-outline mt-16" onclick="closeModal('dvcModal')">Đóng</button>
-  </div>
-</div>
-
-<!-- ================= MODAL: RE-ENTRY QR ================= -->
-<div id="reentryModal" class="modal-overlay hidden">
-  <div class="modal-box text-center">
-    <h2>🔄 Quét mã QR Bổ sung hồ sơ</h2>
-    <p class="text-muted">Nhập/quét mã Re-entry được cấp khi cán bộ yêu cầu bổ sung giấy tờ</p>
-    <input id="reentryTokenInput" placeholder="Mã Re-entry Token" />
-    <button class="btn btn-primary mt-16" onclick="submitReentry()">Xác nhận đã bổ sung</button>
-    <button class="btn btn-outline mt-16" onclick="closeModal('reentryModal')">Đóng</button>
-  </div>
 </div>
 
 <!-- ================= MODAL: FORM TEMPLATE (Annotated Sample) ================= -->
