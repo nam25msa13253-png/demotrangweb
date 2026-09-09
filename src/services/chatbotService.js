@@ -35,6 +35,7 @@ async function buildGroundingContext() {
     FROM counters c
     JOIN service_fields sf ON sf.id = c.field_id
     LEFT JOIN tickets t ON t.counter_id = c.id AND t.status IN ('QUEUED','CALLING','PROCESSING')
+    WHERE c.is_deleted = 0
     GROUP BY c.id, sf.name
     ORDER BY c.code ASC
   `);

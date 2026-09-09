@@ -11,6 +11,7 @@ router.get('/counters', async (req, res) => {
       t.ticket_number, t.status AS ticket_status, t.citizen_name
     FROM counters c
     LEFT JOIN tickets t ON t.id = c.active_ticket_id
+    WHERE c.is_deleted = 0
     ORDER BY c.code ASC
   `);
   res.json(rows);
