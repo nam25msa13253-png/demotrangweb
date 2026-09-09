@@ -1,4 +1,6 @@
-let currentService = null;
+// Trang Buoc 1 (Tim thu tuc) cua Kiosk - da tach rieng khoi Buoc 2/3 (xem kiosk-checklist.html
+// + js/kiosk-checklist.js). Chon xong 1 thu tuc se DIEU HUONG SANG TRANG KHAC (khong con
+// showScreen() trong cung 1 trang nhu truoc).
 
 // Phan hoi rung nhe khi cham nut tren man hinh cam ung (khong co gi xay ra tren thiet bi
 // khong ho tro rung - navigator.vibrate don gian khong ton tai/khong lam gi).
@@ -6,46 +8,23 @@ function tapFeedback() {
   if (navigator.vibrate) navigator.vibrate(12);
 }
 
-const STEP_ORDER = ['home', 'checklist', 'ticket'];
-function updateStepper(name) {
-  const currentIndex = STEP_ORDER.indexOf(name);
-  document.querySelectorAll('.kiosk-step').forEach((el) => {
-    const idx = STEP_ORDER.indexOf(el.dataset.step);
-    el.classList.toggle('active', idx === currentIndex);
-    el.classList.toggle('done', idx < currentIndex);
-  });
-  document.getElementById('stepLine1').classList.toggle('done', currentIndex > 0);
-  document.getElementById('stepLine2').classList.toggle('done', currentIndex > 1);
-}
-
-function showScreen(name) {
-  STEP_ORDER.forEach((s) => {
-    document.getElementById(`screen-${s}`).classList.toggle('hidden', s !== name);
-  });
-  updateStepper(name);
-}
-function goHome() {
-  currentService = null;
-  document.getElementById('searchInput').value = '';
-  document.getElementById('serviceList').innerHTML = '';
-  showScreen('home');
-}
 function closeAllModals() {
-  ['wifiModal', 'dvcModal', 'reentryModal', 'formTemplateModal'].forEach(closeModal);
+  ['wifiModal', 'dvcModal', 'reentryModal'].forEach(closeModal);
 }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 
-// Kiosk dat noi cong cong: neu cong dan roi di giua chung ma khong bam "Hoan tat"/"Quay lai",
-// tu dong dua ve man hinh chu sau 1 thoi gian khong thao tac de bao ve rieng tu (nguoi ke tiep
-// khong nhin thay ho so/STT cua nguoi truoc con dang mo tren man hinh).
+// Kiosk dat noi cong cong: neu cong dan roi di ma khong thao tac, xoa o tim kiem/ket qua sau
+// 1 thoi gian de bao ve rieng tu (khong co du lieu nhay cam o trang nay nen chi can lam sach
+// o tim kiem, khong can dieu huong trang).
 const IDLE_RESET_MS = 90 * 1000;
 let idleTimer = null;
 function resetIdleTimer() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    const homeVisible = !document.getElementById('screen-home').classList.contains('hidden');
-    if (!homeVisible) { closeAllModals(); goHome(); }
+    closeAllModals();
+    document.getElementById('searchInput').value = '';
+    document.getElementById('serviceList').innerHTML = '';
   }, IDLE_RESET_MS);
 }
 ['click', 'touchstart', 'keydown'].forEach((evt) => document.addEventListener(evt, resetIdleTimer, { passive: true }));
@@ -76,8 +55,8 @@ function renderServiceList(services) {
   }
   list.innerHTML = services.map((s) => `
     <div class="service-item" tabindex="0" role="button" aria-label="Chọn thủ tục ${s.name}"
-      onclick="selectService(${s.id})"
-      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectService(${s.id})}">
+      onclick="goToChecklist(${s.id})"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToChecklist(${s.id})}">
       <div>
         <div style="font-weight:700;">${s.name}</div>
         <div class="text-muted" style="font-size:0.85rem;">${s.field_name} • SLA ${s.sla_minutes} phút • Lệ phí ${Number(s.fee_amount).toLocaleString('vi-VN')}đ</div>
@@ -87,99 +66,10 @@ function renderServiceList(services) {
   `).join('');
 }
 
-async function selectService(serviceId) {
+// Chuyen sang trang Buoc 2 (Doi chieu giay to) mang theo serviceId qua query string.
+function goToChecklist(serviceId) {
   tapFeedback();
-  try {
-    const data = await ApiClient.get(`/api/kiosk/services/${serviceId}/checklist`);
-    currentService = data;
-    document.getElementById('checklistServiceName').textContent = data.service.name;
-    document.getElementById('checklistItems').innerHTML = (data.requiredDocs || []).map((d) => `
-      <label class="checklist-item">
-        <input type="checkbox" value="${d.code}" />
-        <span>${d.name}${d.mandatory ? ' <b style="color:var(--color-danger)">*</b>' : ''}</span>
-      </label>
-    `).join('');
-    renderChecklistStatus();
-    showScreen('checklist');
-  } catch (err) { showToast(err.message, 'error'); }
-}
-
-// Phan hoi truc quan theo thoi gian thuc khi cong dan tich chon giay to: con thieu -> banner
-// do; da du 100% giay to bat buoc -> banner xanh. Giup nguoi dan biet ngay minh con thieu gi
-// truoc khi bam "Xac nhan" thay vi phai doi server tra loi REJECTED.
-function renderChecklistStatus() {
-  const box = document.getElementById('checklistResult');
-  if (!currentService) { box.innerHTML = ''; return; }
-
-  const mandatoryDocs = (currentService.requiredDocs || []).filter((d) => d.mandatory);
-  const checkedCodes = new Set(Array.from(document.querySelectorAll('#checklistItems input:checked')).map((el) => el.value));
-  const missingDocs = mandatoryDocs.filter((d) => !checkedCodes.has(d.code));
-
-  if (missingDocs.length > 0) {
-    box.innerHTML = `
-      <div class="checklist-status checklist-status-missing">
-        <span class="icon">⚠️</span>
-        <div>
-          <div>Còn thiếu ${missingDocs.length} giấy tờ bắt buộc</div>
-          <div class="sub">${missingDocs.map((d) => d.name).join(', ')}</div>
-        </div>
-      </div>`;
-  } else {
-    box.innerHTML = `
-      <div class="checklist-status checklist-status-ok">
-        <span class="icon">✅</span>
-        <div>Đã đủ giấy tờ bắt buộc — sẵn sàng lấy số thứ tự!</div>
-      </div>`;
-  }
-}
-
-document.getElementById('checklistItems').addEventListener('change', renderChecklistStatus);
-
-async function submitCheckGate() {
-  tapFeedback();
-  const confirmedDocCodes = Array.from(document.querySelectorAll('#checklistItems input:checked')).map((el) => el.value);
-
-  try {
-    const result = await ApiClient.post('/api/kiosk/tickets', {
-      serviceId: currentService.service.id, citizenName: 'Khách tại Kiosk', phone: '', confirmedDocCodes
-    });
-
-    if (result.status === 'REJECTED') {
-      showMissingDocsGuide(result);
-      return;
-    }
-
-    document.getElementById('ticketNumber').textContent = result.ticket.ticket_number;
-    document.getElementById('ticketCounterName').textContent = `Vui lòng đến ${result.counter.name}`;
-    showScreen('ticket');
-  } catch (err) { showToast(err.message, 'error'); }
-}
-
-function showMissingDocsGuide(result) {
-  const allDocs = currentService.requiredDocs || [];
-  const missingNames = (result.missing || []).map((code) => {
-    const doc = allDocs.find((d) => d.code === code);
-    return doc ? doc.name : code;
-  });
-
-  document.getElementById('missingDocsBox').innerHTML = `
-    <div class="missing-list">
-      <b>Bạn còn thiếu ${missingNames.length} giấy tờ:</b>
-      <ul>${missingNames.map((n) => `<li>${n}</li>`).join('')}</ul>
-    </div>`;
-
-  const form = result.formTemplate;
-  if (form) {
-    document.getElementById('formLocationBox').innerHTML = `
-      <div class="location-box">
-        <b>📍 Vị trí lấy phôi tờ khai:</b> ${form.shelf_name} → ${form.tray_number} → ${form.desk_area}<br/>
-        ${form.annotated_sample_url ? `<img src="${form.annotated_sample_url}" alt="Mẫu tờ khai" style="max-width:100%;border-radius:8px;margin-top:10px;" onerror="this.style.display='none'"/>` : ''}
-        <div class="mt-16"><b>Mã tờ khai:</b> ${form.form_name}</div>
-      </div>`;
-  } else {
-    document.getElementById('formLocationBox').innerHTML = '<p class="text-muted">Vui lòng liên hệ quầy hỗ trợ để được hướng dẫn.</p>';
-  }
-  openModal('formTemplateModal');
+  window.location.href = `kiosk-checklist.html?serviceId=${serviceId}`;
 }
 
 // Mo them bang chat AI voi 1 cau hoi huong dan dinh san, song song voi modal chuc nang that
@@ -236,7 +126,7 @@ async function submitReentry() {
 }
 
 // Auto-xu ly khi mo bang URL ?reentry=<token> (mo phong quet QR that) hoac
-// ?serviceId=<id> (nhay thang vao checklist khi den tu Trang chu / the danh muc).
+// ?serviceId=<id> (chuyen thang sang trang checklist khi den tu Trang chu / the danh muc).
 (function initFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const token = params.get('reentry');
@@ -247,8 +137,7 @@ async function submitReentry() {
   }
 
   const serviceId = params.get('serviceId');
-  if (serviceId) selectService(Number(serviceId));
-  else updateStepper('home'); // khong co serviceId tren URL -> dang o man hinh chu, danh dau Buoc 1
+  if (serviceId) window.location.replace(`kiosk-checklist.html?serviceId=${serviceId}`);
 })();
 
 document.getElementById('searchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchServices(); });

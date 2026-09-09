@@ -1,0 +1,50 @@
+/* Dung chung cho kiosk.html (Buoc 1: Tim thu tuc) va kiosk-checklist.html (Buoc 2+3: Doi
+   chieu giay to / Nhan so) - tach rieng thanh file de 2 trang khong bi lech style theo thoi gian. */
+body { font-size: 18px; }
+.kiosk-wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+.hero { text-align: center; margin-bottom: 28px; }
+.hero h1 { font-size: 1.8rem; margin-bottom: 4px; }
+.search-row { display: flex; gap: 12px; margin-bottom: 20px; }
+.search-row input { flex: 1; font-size: 1.2rem; padding: 18px; }
+.quick-actions { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center; }
+.service-list { display: flex; flex-direction: column; gap: 10px; }
+.service-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 20px; background: #fff; border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card); cursor: pointer; border: 2px solid transparent;
+}
+.service-item:hover { border-color: var(--color-primary); }
+.checklist-item { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 10px; background: #f8fafc; margin-bottom: 8px; }
+.checklist-item input { width: auto; }
+.ticket-hero { text-align: center; padding: 40px 20px; }
+.ticket-number { font-size: 4.5rem; font-weight: 800; color: var(--color-primary); letter-spacing: 2px; }
+.step-nav { display:flex; justify-content: space-between; margin-top: 20px; }
+.missing-list { background: #fee2e2; border: 1.5px solid var(--color-danger); border-radius: 10px; padding: 14px; margin: 14px 0; }
+.location-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px; margin: 14px 0; }
+.checklist-status {
+  display: flex; align-items: center; gap: 12px; border-radius: 12px; padding: 16px 18px;
+  margin: 16px 0; font-weight: 700; font-size: 1.05rem;
+}
+.checklist-status .icon { font-size: 1.5rem; flex-shrink: 0; }
+.checklist-status-missing { background: #fee2e2; border: 1.5px solid var(--color-danger); color: #991b1b; }
+.checklist-status-ok { background: #dcfce7; border: 1.5px solid var(--color-success); color: #14532d; }
+.checklist-status .sub { font-weight: 500; font-size: 0.85rem; margin-top: 2px; opacity: 0.9; }
+
+/* Thanh tien trinh 3 buoc: giup cong dan biet dang o dau trong quy trinh lay so - hien tren
+   ca 2 trang, luc o kiosk.html luon dung yen o Buoc 1, luc o kiosk-checklist.html chuyen
+   dong theo man hinh dang xem (Buoc 2 hoac Buoc 3). */
+.kiosk-stepper { display: flex; align-items: flex-start; justify-content: center; gap: 6px; margin-bottom: 30px; }
+.kiosk-step { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 96px; }
+.kiosk-step .num {
+  width: 38px; height: 38px; border-radius: 50%; background: #e2e8f0; color: #64748b;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.05rem;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.kiosk-step .lbl { font-size: 0.76rem; font-weight: 700; color: var(--color-text-muted); text-align: center; line-height: 1.3; }
+.kiosk-step.active .num { background: var(--color-primary); color: #fff; }
+.kiosk-step.active .lbl { color: var(--color-primary-dark); }
+.kiosk-step.done .num { background: var(--color-success); color: #fff; }
+.kiosk-step-line { width: 40px; height: 2px; background: var(--color-border); margin-top: 19px; flex-shrink: 0; }
+.kiosk-step-line.done { background: var(--color-success); }
+
+.skeleton-card { height: 76px; margin-bottom: 10px; }

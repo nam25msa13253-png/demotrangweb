@@ -60,7 +60,7 @@
       return;
     }
     grid.innerHTML = services.map((s) => `
-      <a href="kiosk.html?serviceId=${s.id}" class="card-link category-card">
+      <a href="kiosk-checklist.html?serviceId=${s.id}" class="card-link category-card">
         <div class="card">
           <h3>${s.name}</h3>
           <p class="desc">${s.field_name} • SLA ${s.sla_minutes} phút</p>
@@ -106,7 +106,7 @@
   });
 
   SearchSuggest.attach(document.getElementById('searchInput'), document.getElementById('searchForm'), {
-    onSelect: (service) => { window.location.href = `kiosk.html?serviceId=${service.id}`; }
+    onSelect: (service) => { window.location.href = `kiosk-checklist.html?serviceId=${service.id}`; }
   });
 
   fetch('/api/kiosk/counters/status')
