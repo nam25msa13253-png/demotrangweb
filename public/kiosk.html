@@ -53,31 +53,6 @@
   .kiosk-step-line.done { background: var(--color-success); }
 
   .skeleton-card { height: 76px; margin-bottom: 10px; }
-
-  /* Khung chat toan trang thay the 3 man hinh rieng biet - dan dat ca 3 buoc (tim thu tuc,
-     doi chieu giay to, nhan so) qua hoi thoai tu do thay vi form/nut bam co dinh. */
-  .kiosk-chat-panel { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-card); display: flex; flex-direction: column; height: 58vh; min-height: 440px; }
-  .kiosk-chat-messages { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
-  .kiosk-chat-row { display: flex; gap: 10px; align-items: flex-end; }
-  .kiosk-chat-row.user { justify-content: flex-end; }
-  .kiosk-chat-avatar { width: 40px; height: 40px; border-radius: 50%; background: #eff6ff; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
-  .kiosk-chat-bubble { max-width: 76%; padding: 14px 18px; border-radius: 16px; font-size: 1.05rem; line-height: 1.55; white-space: pre-wrap; }
-  .kiosk-chat-bubble.bot { background: #f1f5f9; border-bottom-left-radius: 4px; }
-  .kiosk-chat-bubble.user { background: var(--color-primary); color: #fff; border-bottom-right-radius: 4px; }
-  .kiosk-chat-candidates { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-  .kiosk-chat-candidate-btn { text-align: left; padding: 13px 16px; border-radius: 10px; border: 1.5px solid var(--color-border); background: #fff; cursor: pointer; font-size: 1rem; }
-  .kiosk-chat-candidate-btn:hover { border-color: var(--color-primary); }
-  .kiosk-chat-ticket-card { background: #eff6ff; border: 2px solid var(--color-primary); border-radius: 14px; padding: 20px; text-align: center; max-width: 90%; }
-  .kiosk-chat-ticket-number { font-size: 3rem; font-weight: 800; color: var(--color-primary); margin: 8px 0; letter-spacing: 1px; }
-  .kiosk-chat-countdown { font-size: 0.88rem; color: var(--color-text-muted); margin-top: 12px; }
-  .kiosk-chat-typing { display: flex; align-items: center; gap: 4px; padding: 4px 2px; }
-  .kiosk-chat-typing span { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; animation: kioskTypingBounce 1s infinite ease-in-out; }
-  .kiosk-chat-typing span:nth-child(2) { animation-delay: 0.15s; }
-  .kiosk-chat-typing span:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes kioskTypingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
-  .kiosk-chat-input-row { display: flex; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--color-border); }
-  .kiosk-chat-input-row input { flex: 1; font-size: 1.1rem; padding: 16px; border-radius: 12px; border: 1px solid var(--color-border); }
-  .kiosk-chat-input-row input:disabled { background: #f1f5f9; }
 </style>
 </head>
 <body>
@@ -93,22 +68,46 @@
     <div class="kiosk-step" data-step="ticket"><div class="num">3</div><div class="lbl">Nhận số thứ tự</div></div>
   </div>
 
-  <div class="hero">
-    <h1>Xin chào Quý công dân 👋</h1>
-    <p class="text-muted">Trò chuyện với trợ lý để tìm thủ tục và lấy số thứ tự</p>
-  </div>
-  <div class="quick-actions">
-    <button class="btn btn-outline" onclick="openWifiModal()">📶 Kết nối Wi-Fi</button>
-    <button class="btn btn-outline" onclick="openDvcModal()">📱 Nộp trực tuyến (DVC)</button>
-    <button class="btn btn-outline" onclick="openReentryModal()">🔄 Quét mã Bổ sung hồ sơ</button>
-  </div>
+  <!-- ================= MAN HINH 0: TRANG CHU ================= -->
+  <section id="screen-home">
+    <div class="hero">
+      <h1>Xin chào Quý công dân 👋</h1>
+      <p class="text-muted">Vui lòng tìm thủ tục hành chính cần thực hiện</p>
+    </div>
+    <div class="search-row" id="searchRow" autocomplete="off">
+      <input id="searchInput" type="text" placeholder="VD: sang tên sổ đỏ, khai sinh, đăng ký kinh doanh..." />
+      <button class="btn btn-primary" onclick="searchServices()">Tìm kiếm</button>
+    </div>
+    <div class="quick-actions">
+      <button class="btn btn-outline" onclick="openWifiModal()">📶 Kết nối Wi-Fi</button>
+      <button class="btn btn-outline" onclick="openDvcModal()">📱 Nộp trực tuyến (DVC)</button>
+      <button class="btn btn-outline" onclick="openReentryModal()">🔄 Quét mã Bổ sung hồ sơ</button>
+    </div>
+    <div id="serviceList" class="service-list"></div>
+  </section>
 
-  <!-- ================= KHUNG CHAT LAY SO (thay the 3 man hinh rieng biet truoc day) ================= -->
-  <section class="kiosk-chat-panel">
-    <div class="kiosk-chat-messages" id="kioskChatMessages"></div>
-    <div class="kiosk-chat-input-row">
-      <input id="kioskChatInput" type="text" placeholder="VD: tôi cần sang tên sổ đỏ..." autocomplete="off" />
-      <button class="btn btn-primary" id="kioskChatSendBtn" onclick="sendKioskChat()">Gửi</button>
+  <!-- ================= MAN HINH 1: CHECKLIST / PRE-VALIDATION ================= -->
+  <section id="screen-checklist" class="hidden">
+    <div class="card">
+      <h2 id="checklistServiceName"></h2>
+      <p class="text-muted">Vui lòng đối chiếu và xác nhận các giấy tờ bạn đang có sẵn:</p>
+      <div id="checklistItems"></div>
+      <div id="checklistResult"></div>
+      <div class="step-nav">
+        <button class="btn btn-outline" onclick="goHome()">← Quay lại</button>
+        <button class="btn btn-primary btn-lg" onclick="submitCheckGate()">Xác nhận & Lấy số thứ tự</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MAN HINH 2: KET QUA CAP VE ================= -->
+  <section id="screen-ticket" class="hidden">
+    <div class="card ticket-hero">
+      <p>Số thứ tự của bạn</p>
+      <div id="ticketNumber" class="ticket-number">A-101</div>
+      <p class="mt-16" id="ticketCounterName" style="font-size:1.3rem;font-weight:600;"></p>
+      <p class="text-muted">Vui lòng theo dõi Bảng LED và lắng nghe Loa thông báo</p>
+      <button class="btn btn-primary btn-lg mt-24" onclick="goHome()">Hoàn tất</button>
     </div>
   </section>
 </div>
@@ -156,7 +155,7 @@
     <h2>📋 Hướng dẫn Bổ sung Hồ sơ</h2>
     <div id="missingDocsBox"></div>
     <div id="formLocationBox"></div>
-    <button class="btn btn-primary btn-block mt-16" onclick="closeModal('formTemplateModal')">Đã hiểu, tôi sẽ quay lại chat khi chuẩn bị xong</button>
+    <button class="btn btn-primary btn-block mt-16" onclick="closeModal('formTemplateModal'); showScreen('checklist')">Tôi đã chuẩn bị xong, Kiểm tra lại</button>
   </div>
 </div>
 
@@ -165,5 +164,11 @@
 <script src="js/kiosk.js"></script>
 <script src="js/header.js"></script>
 <script src="js/chatbot.js?v=2"></script>
+<script src="js/searchSuggest.js"></script>
+<script>
+  SearchSuggest.attach(document.getElementById('searchInput'), document.getElementById('searchRow'), {
+    onSelect: (service) => selectService(service.id)
+  });
+</script>
 </body>
 </html>
