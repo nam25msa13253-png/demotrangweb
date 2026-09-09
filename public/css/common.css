@@ -428,6 +428,14 @@ th { color: var(--color-text-muted); font-weight: 600; text-transform: uppercase
 .chatbot-send:hover:not(:disabled) { background: var(--color-primary-dark); transform: scale(1.05); }
 .chatbot-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.chatbot-wifi-card { background: #f0f9ff; border: 1px solid #bae6fd; }
+.chatbot-wifi-card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.82rem; margin-bottom: 8px; flex-wrap: wrap; }
+.chatbot-wifi-card-row span { color: var(--color-text-muted, #64748b); }
+.chatbot-wifi-copy { border: none; background: var(--color-primary); color: #fff; border-radius: 6px; padding: 4px 10px; font-size: 0.72rem; cursor: pointer; flex-shrink: 0; }
+.chatbot-wifi-copy:hover { background: var(--color-primary-dark); }
+.chatbot-wifi-qr { display: flex; justify-content: center; margin: 10px 0; background: #fff; padding: 10px; border-radius: 8px; }
+.chatbot-wifi-note { font-size: 0.72rem; color: var(--color-text-muted, #64748b); text-align: center; }
+
 @media (max-width: 480px) {
   .chatbot-panel { width: calc(100vw - 24px); right: -10px; height: 76vh; }
   .site-nav-link { padding: 8px 10px; font-size: 0.8rem; }

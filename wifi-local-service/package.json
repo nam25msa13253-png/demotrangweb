@@ -1,0 +1,14 @@
+{
+  "name": "kiosk-wifi-local-service",
+  "version": "1.0.0",
+  "description": "Dich vu nen chay TREN CHINH MAY KIOSK Windows - doc SSID/mat khau Wi-Fi ma may dang ket noi (qua netsh) va cung cap API cho trang web Kiosk sinh ma QR. KHONG deploy len Render.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}

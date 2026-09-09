@@ -15,6 +15,13 @@
   let isOpen = false;
   let isSending = false;
 
+  // Dich vu cuc bo chay TREN CHINH MAY KIOSK (xem thu muc wifi-local-service/ o goc du an) -
+  // doc SSID/mat khau THAT ma may nay dang ket noi, khac voi WIFI_SSID/WIFI_PASSWORD Admin nhap
+  // tay trong Cau hinh Tham so (dung lam du lieu huong dan van ban chung cho AI/rule-based).
+  const WIFI_SERVICE_URL = 'http://localhost:5000/api/current-wifi';
+  const WIFI_KEYWORDS = ['wifi', 'wi-fi', 'wi fi', 'mang wifi', 'ket noi mang', 'mat khau wifi', 'internet'];
+  let qrLibPromise = null;
+
   const widgetHtml = `
     <div class="chatbot-widget">
       <button class="chatbot-fab" id="chatbotFab" aria-label="Mở trợ lý AI">
@@ -175,6 +182,101 @@
     if (el) el.remove();
   }
 
+  // Bo dau + ha chu thuong (giong ham unaccentVi/normalize ben ruleBasedAssistant.js) de nhan
+  // dien cau hoi Wi-Fi du go co dau hay khong dau.
+  function unaccentVi(str) {
+    return String(str).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  }
+  function isWifiQuestion(text) {
+    const normalized = unaccentVi(text).toLowerCase();
+    return WIFI_KEYWORDS.some((k) => normalized.includes(k));
+  }
+
+  function fetchWithTimeout(url, ms) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+  }
+
+  // Tai thu vien sinh QR (qrcodejs) qua CDN, chi 1 lan - khong bat trang nao dung chatbot.js
+  // phai tu them the <script> rieng, giu dung tinh than "chi can nhung 1 file" o dau file nay.
+  function loadQrLibrary() {
+    if (window.QRCode) return Promise.resolve();
+    if (qrLibPromise) return qrLibPromise;
+    qrLibPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Khong tai duoc thu vien QR'));
+      document.head.appendChild(script);
+    });
+    return qrLibPromise;
+  }
+
+  // Goi Dich vu Wi-Fi cuc bo (chay tren chinh may Kiosk, xem wifi-local-service/README.md) de
+  // lay SSID/mat khau THAT may nay dang ket noi, hien the ngay trong khung chat kem ma QR that -
+  // khong dieu huong sang trang/modal nao khac. Neu dich vu chua chay tren may nay (VD dang test
+  // tren may van phong khong phai Kiosk that), lang le bo qua: cau tra loi huong dan van ban tu
+  // bo rule-based/AI o tren van du de nguoi dung tu bam nut "Ket noi Wi-Fi" tren man hinh chinh.
+  async function appendWifiCard() {
+    let data;
+    try {
+      const res = await fetchWithTimeout(WIFI_SERVICE_URL, 2500);
+      data = await res.json();
+    } catch (err) {
+      return;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'chatbot-row chatbot-row-bot';
+    const avatar = document.createElement('div');
+    avatar.className = 'chatbot-avatar';
+    avatar.textContent = '📶';
+    row.appendChild(avatar);
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chatbot-msg chatbot-msg-bot chatbot-wifi-card';
+
+    if (!data.success) {
+      bubble.innerHTML = `<p class="chatbot-line">${escapeHtml(data.error || 'Máy này hiện không kết nối Wi-Fi nào.')}</p>`;
+      row.appendChild(bubble);
+      messagesBox.appendChild(row);
+      messagesBox.scrollTop = messagesBox.scrollHeight;
+      return;
+    }
+
+    bubble.innerHTML = `
+      <div class="chatbot-wifi-card-row"><span>Tên mạng (SSID)</span><b>${escapeHtml(data.ssid)}</b></div>
+      <div class="chatbot-wifi-card-row">
+        <span>Mật khẩu</span>
+        <b>${escapeHtml(data.password || '(mạng mở, không cần mật khẩu)')}</b>
+        ${data.password ? '<button type="button" class="chatbot-wifi-copy" id="chatbotWifiCopyBtn">Sao chép</button>' : ''}
+      </div>
+      <div class="chatbot-wifi-qr" id="chatbotWifiQr"></div>
+      <div class="chatbot-wifi-note">Quét mã QR trên bằng camera điện thoại để kết nối Wi-Fi ngay.</div>
+    `;
+    row.appendChild(bubble);
+    messagesBox.appendChild(row);
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+
+    const copyBtn = bubble.querySelector('#chatbotWifiCopyBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(data.password);
+          copyBtn.textContent = 'Đã sao chép!';
+          setTimeout(() => { copyBtn.textContent = 'Sao chép'; }, 1500);
+        } catch (e) { /* Clipboard API co the bi chan (VD trang khong phai HTTPS) - bo qua */ }
+      });
+    }
+
+    try {
+      await loadQrLibrary();
+      new window.QRCode(bubble.querySelector('#chatbotWifiQr'), { text: data.qrString, width: 140, height: 140 });
+      messagesBox.scrollTop = messagesBox.scrollHeight;
+    } catch (e) { /* Khong tai duoc thu vien QR - SSID/mat khau van con hien de doc thu cong */ }
+  }
+
   // presetText: cho phep trang chu (VD nut Thao tac nhanh tren Kiosk) tu goi 1 cau hoi dinh
   // san thay vi nguoi dung phai tu go, xem window.ChatbotWidget o cuoi file.
   async function sendMessage(presetText) {
@@ -205,6 +307,10 @@
       appendMessage(data.reply, 'bot');
       history.push({ role: 'user', content: text });
       history.push({ role: 'assistant', content: data.reply });
+
+      // Khong await: khong lam cham viec mo lai nut gui/xoa typing indicator. Neu Dich vu
+      // Wi-Fi cuc bo chua chay tren may nay, appendWifiCard() tu lang le bo qua, khong lam sao.
+      if (isWifiQuestion(text)) appendWifiCard();
     } catch (err) {
       removeTypingIndicator();
       appendMessage('Không thể kết nối tới trợ lý AI. Vui lòng kiểm tra kết nối mạng.', 'bot');
