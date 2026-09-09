@@ -5,7 +5,7 @@ const KIOSK_FEATURES = [
   {
     id: 'WIFI',
     keywords: ['wifi', 'wi-fi', 'wi fi', 'mang wifi', 'ket noi mang', 'internet'],
-    text: 'Kết nối Wi-Fi: Bấm nút "Kết nối Wi-Fi" ở màn hình chính Kiosk để xem tên mạng (SSID) và mật khẩu Wi-Fi miễn phí của cơ sở, sau đó vào phần cài đặt Wi-Fi trên điện thoại/máy tính và nhập đúng thông tin đó.'
+    text: 'Kết nối Wi-Fi:\n- Trên điện thoại: mở Camera, quét mã QR Wi-Fi hiển thị bên dưới, sau đó bấm vào thông báo "Tham gia mạng" xuất hiện trên màn hình.\n- Trên máy tính: mở biểu tượng Wi-Fi ở góc màn hình, chọn đúng tên mạng (SSID) hiển thị bên dưới, rồi nhập mật khẩu tương ứng.'
   },
   {
     id: 'DVC',
