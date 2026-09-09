@@ -2,7 +2,7 @@
 // vao moi trang, khong phai lap lai markup logo/nav o tung file HTML.
 (function () {
   // login.html KHONG dung header nay (tu quan ly rieng, xem public/login.html).
-  const PUBLIC_PAGES = ['', 'index.html', 'kiosk.html', 'kiosk-checklist.html', 'huong-dan.html', 'display.html', '404.html'];
+  const PUBLIC_PAGES = ['', 'index.html', 'kiosk-checklist.html', 'huong-dan.html', 'display.html', '404.html'];
   const currentPage = window.location.pathname.split('/').pop();
   const isPublicPage = PUBLIC_PAGES.includes(currentPage);
 

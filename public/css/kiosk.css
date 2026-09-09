@@ -1,19 +1,7 @@
-/* Dung chung cho kiosk.html (Buoc 1: Tim thu tuc) va kiosk-checklist.html (Buoc 2+3: Doi
-   chieu giay to / Nhan so) - tach rieng thanh file de 2 trang khong bi lech style theo thoi gian. */
+/* Dung cho kiosk-checklist.html (Doi chieu giay to / Nhan so thu tu) - trang "Tim thu tuc"
+   rieng da bo (trung lap voi tim kiem san co tren Trang chu index.html). */
 body { font-size: 18px; }
 .kiosk-wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-.hero { text-align: center; margin-bottom: 28px; }
-.hero h1 { font-size: 1.8rem; margin-bottom: 4px; }
-.search-row { display: flex; gap: 12px; margin-bottom: 20px; }
-.search-row input { flex: 1; font-size: 1.2rem; padding: 18px; }
-.quick-actions { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center; }
-.service-list { display: flex; flex-direction: column; gap: 10px; }
-.service-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 18px 20px; background: #fff; border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card); cursor: pointer; border: 2px solid transparent;
-}
-.service-item:hover { border-color: var(--color-primary); }
 .checklist-item { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 10px; background: #f8fafc; margin-bottom: 8px; }
 .checklist-item input { width: auto; }
 .ticket-hero { text-align: center; padding: 40px 20px; }
@@ -30,9 +18,8 @@ body { font-size: 18px; }
 .checklist-status-ok { background: #dcfce7; border: 1.5px solid var(--color-success); color: #14532d; }
 .checklist-status .sub { font-weight: 500; font-size: 0.85rem; margin-top: 2px; opacity: 0.9; }
 
-/* Thanh tien trinh 3 buoc: giup cong dan biet dang o dau trong quy trinh lay so - hien tren
-   ca 2 trang, luc o kiosk.html luon dung yen o Buoc 1, luc o kiosk-checklist.html chuyen
-   dong theo man hinh dang xem (Buoc 2 hoac Buoc 3). */
+/* Thanh tien trinh 3 buoc: Buoc 1 (Tim thu tuc) luon hien "done" vi da hoan thanh tren Trang
+   chu truoc khi den duoc trang nay; Buoc 2/3 chuyen dong theo man hinh dang xem. */
 .kiosk-stepper { display: flex; align-items: flex-start; justify-content: center; gap: 6px; margin-bottom: 30px; }
 .kiosk-step { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 96px; }
 .kiosk-step .num {
@@ -46,5 +33,3 @@ body { font-size: 18px; }
 .kiosk-step.done .num { background: var(--color-success); color: #fff; }
 .kiosk-step-line { width: 40px; height: 2px; background: var(--color-border); margin-top: 19px; flex-shrink: 0; }
 .kiosk-step-line.done { background: var(--color-success); }
-
-.skeleton-card { height: 76px; margin-bottom: 10px; }

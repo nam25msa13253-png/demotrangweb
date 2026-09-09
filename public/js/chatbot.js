@@ -8,7 +8,10 @@
   const SUGGESTIONS = [
     'Làm giấy khai sinh cần gì?',
     'Lệ phí sang tên sổ đỏ bao nhiêu?',
-    'Quầy nào đang mở?'
+    'Quầy nào đang mở?',
+    'Kết nối Wi-Fi',
+    'Nộp hồ sơ trực tuyến (DVC)',
+    'Quét mã Bổ sung hồ sơ'
   ];
 
   const history = []; // {role: 'user'|'assistant', content: string}
@@ -21,6 +24,14 @@
   const WIFI_SERVICE_URL = 'http://localhost:5000/api/current-wifi';
   const WIFI_KEYWORDS = ['wifi', 'wi-fi', 'wi fi', 'mang wifi', 'ket noi mang', 'mat khau wifi', 'internet'];
   let qrLibPromise = null;
+
+  // Nut Thao tac nhanh (Wi-Fi/DVC/Bo sung ho so) truoc day nam o 1 trang Kiosk rieng, nay gop
+  // het vao ngay o day (goi y phia tren o nhap) - DVC va Re-entry can hoi lai 1 thong tin (muc
+  // VNeID, ma Re-entry) truoc khi goi API that, nen dung 1 "hanh dong dang cho tra loi" doc lap
+  // voi lich su chat thong thuong.
+  let pendingAction = null; // null | 'AWAIT_VNEID_LEVEL' | 'AWAIT_REENTRY_TOKEN'
+  const DVC_KEYWORDS = ['dvc', 'dich vu cong', 'nop truc tuyen', 'vneid', 'nop online', 'nop qua mang'];
+  const REENTRY_KEYWORDS = ['bo sung ho so', 'quet ma', 're-entry', 'reentry', 'ma qr', 'quet qr'];
 
   const widgetHtml = `
     <div class="chatbot-widget">
@@ -277,6 +288,67 @@
     } catch (e) { /* Khong tai duoc thu vien QR - SSID/mat khau van con hien de doc thu cong */ }
   }
 
+  // ---- DVC / VNeID: hoi muc dinh danh roi goi API kiem tra dieu kien that (khong chi tra loi
+  // van ban chung chung) ----
+  async function handleDvcRequest() {
+    pendingAction = 'AWAIT_VNEID_LEVEL';
+    appendMessage('Để nộp hồ sơ trực tuyến qua Dịch vụ công (DVC), cho tôi biết mức định danh điện tử VNeID hiện tại của bạn là Mức 1 hay Mức 2? (Trả lời "1" hoặc "2")', 'bot');
+  }
+  async function handleVneidAnswer(text) {
+    const level = /2/.test(text) ? 2 : /1/.test(text) ? 1 : null;
+    if (!level) {
+      appendMessage('Xin lỗi, vui lòng trả lời "Mức 1" hoặc "Mức 2".', 'bot');
+      return;
+    }
+    pendingAction = null;
+    appendTypingIndicator();
+    try {
+      const res = await fetch('/api/kiosk/dvc/check-vneid', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vneidLevel: level })
+      });
+      const result = await res.json();
+      removeTypingIndicator();
+      if (result.eligible) {
+        appendMessage('Bạn đủ điều kiện nộp trực tuyến! Các bước thực hiện:\n' + result.guideSteps.map((s, i) => `${i + 1}. ${s}`).join('\n'), 'bot');
+      } else {
+        appendMessage(result.message, 'bot');
+      }
+    } catch (err) {
+      removeTypingIndicator();
+      appendMessage('Không kiểm tra được điều kiện, vui lòng thử lại.', 'bot');
+    }
+  }
+
+  // ---- Re-entry: hoi ma roi goi API chen lai vao hang doi that ----
+  async function handleReentryRequest() {
+    pendingAction = 'AWAIT_REENTRY_TOKEN';
+    appendMessage('Vui lòng nhập mã Re-entry được cán bộ cấp cho bạn khi yêu cầu bổ sung hồ sơ:', 'bot');
+  }
+  async function processReentryToken(token) {
+    appendTypingIndicator();
+    try {
+      const res = await fetch('/api/kiosk/reentry-scan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token })
+      });
+      const result = await res.json();
+      removeTypingIndicator();
+      if (!res.ok) {
+        appendMessage(result.error || 'Mã Re-entry không hợp lệ hoặc đã hết hạn.', 'bot');
+        return;
+      }
+      appendMessage(`Đã xác nhận! Số thứ tự ${result.ticket.ticket_number} của bạn đã được chèn trở lại hàng đợi ưu tiên. Vui lòng theo dõi Bảng LED/Loa.`, 'bot');
+    } catch (err) {
+      removeTypingIndicator();
+      appendMessage('Không xử lý được mã Re-entry, vui lòng thử lại.', 'bot');
+    }
+  }
+  async function handleReentryAnswer(text) {
+    const token = text.trim();
+    if (!token) { appendMessage('Vui lòng nhập mã Re-entry hợp lệ.', 'bot'); return; }
+    pendingAction = null;
+    await processReentryToken(token);
+  }
+
   // presetText: cho phep trang chu (VD nut Thao tac nhanh tren Kiosk) tu goi 1 cau hoi dinh
   // san thay vi nguoi dung phai tu go, xem window.ChatbotWidget o cuoi file.
   async function sendMessage(presetText) {
@@ -286,6 +358,16 @@
     suggestionsBox.remove(); // chi hien goi y ban dau, an di sau cau hoi dau tien
     appendMessage(text, 'user');
     input.value = '';
+
+    // DVC/Re-entry can hoi lai 1 thong tin truoc khi goi API that - xu ly rieng, khong di qua
+    // /api/chatbot/ask (chi tra loi van ban, khong thuc hien duoc hanh dong that).
+    if (pendingAction === 'AWAIT_VNEID_LEVEL') return handleVneidAnswer(text);
+    if (pendingAction === 'AWAIT_REENTRY_TOKEN') return handleReentryAnswer(text);
+
+    const normalizedTrigger = unaccentVi(text).toLowerCase();
+    if (DVC_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleDvcRequest();
+    if (REENTRY_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleReentryRequest();
+
     isSending = true;
     sendBtn.disabled = true;
     appendTypingIndicator();
@@ -328,6 +410,18 @@
     sessionStorage.setItem('chatbotAutoOpened', '1');
     setTimeout(() => togglePanel(true), 1200);
   }
+
+  // Mo phong quet QR Re-entry that: ma QR (vd tren giay hen bo sung ho so) dan toi URL trang bat
+  // ky ?reentry=<token> - vi widget nay nam tren MOI trang cong khai, xu ly ngay tai day thay vi
+  // phai phu thuoc 1 trang Kiosk rieng (da bo, gop het chuc nang vao chatbot).
+  (function handleReentryFromUrl() {
+    const token = new URLSearchParams(window.location.search).get('reentry');
+    if (!token) return;
+    togglePanel(true);
+    suggestionsBox.remove();
+    appendMessage(`Mã Re-entry: ${token}`, 'user');
+    processReentryToken(token);
+  })();
 
   // API cong khai toi thieu de cac trang khac (VD nut Thao tac nhanh tren Kiosk) tu mo panel
   // va gui san 1 cau hoi huong dan, khong can dong lai voi cach widget dung DOM noi bo.

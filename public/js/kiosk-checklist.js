@@ -1,5 +1,6 @@
-// Trang Buoc 2+3 (Doi chieu giay to / Nhan so thu tu) cua Kiosk - tach rieng khoi Buoc 1
-// (xem kiosk.html + js/kiosk.js). Doc serviceId tu query string ?serviceId=<id> khi vao trang.
+// Trang Doi chieu giay to / Nhan so thu tu cua Kiosk. Doc serviceId tu query string
+// ?serviceId=<id> khi vao trang (den tu the danh muc/goi y tim kiem tren index.html - trang
+// "Tim thu tuc" rieng da bi bo vi trung lap voi tim kiem san co tren Trang chu).
 let currentService = null;
 
 function tapFeedback() {
@@ -25,9 +26,10 @@ function showScreen(name) {
   updateStepper(name);
 }
 
-// Khong con man hinh chu trong file nay - quay lai nghia la ve han trang Buoc 1 that su.
+// Khong con trang "Tim thu tuc" rieng nua - quay lai nghia la ve Trang chu (index.html), noi
+// da co san o tim kiem/the danh muc dan thang toi trang nay.
 function goBackToSearch() {
-  window.location.href = 'kiosk.html';
+  window.location.href = 'index.html';
 }
 
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
@@ -142,12 +144,12 @@ function showMissingDocsGuide(result) {
   openModal('formTemplateModal');
 }
 
-// Trang nay bat buoc phai co ?serviceId=<id> tren URL (chi den tu trang kiosk.html sau khi
-// chon thu tuc) - neu thieu, dieu huong ve lai Buoc 1 thay vi hien trang trong.
+// Trang nay bat buoc phai co ?serviceId=<id> tren URL (chi den tu the danh muc/goi y tim kiem
+// tren Trang chu) - neu thieu, dieu huong ve Trang chu thay vi hien trang trong.
 (function initFromUrl() {
   const serviceId = new URLSearchParams(window.location.search).get('serviceId');
   if (!serviceId) {
-    window.location.replace('kiosk.html');
+    window.location.replace('index.html');
     return;
   }
   loadChecklist(Number(serviceId));
