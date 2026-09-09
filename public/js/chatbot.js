@@ -56,7 +56,6 @@
               Xin chào! Tôi là trợ lý ảo của Trung tâm Hành chính công. Bạn cần hỏi về thủ tục nào?
             </div>
           </div>
-          <div class="chatbot-suggestions" id="chatbotSuggestions"></div>
         </div>
         <div class="chatbot-input-row">
           <input type="text" id="chatbotInput" placeholder="Nhập câu hỏi của bạn..." />
@@ -72,17 +71,33 @@
   const panel = document.getElementById('chatbotPanel');
   const closeBtn = document.getElementById('chatbotClose');
   const messagesBox = document.getElementById('chatbotMessages');
-  const suggestionsBox = document.getElementById('chatbotSuggestions');
   const input = document.getElementById('chatbotInput');
   const sendBtn = document.getElementById('chatbotSend');
 
-  suggestionsBox.innerHTML = SUGGESTIONS.map((s) => `<button type="button" class="chatbot-chip">${s}</button>`).join('');
-  suggestionsBox.querySelectorAll('.chatbot-chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
-      input.value = chip.textContent;
-      sendMessage();
+  // Goi y (chip) truoc day nam co dinh 1 lan dau tien roi bi xoa han sau cau hoi dau tien -
+  // nguoi dung khong con cach nao bam lai goi y nhanh nua. Gio gan goi y theo TUNG LUOT tra loi:
+  // luon hien lai ngay ben duoi cau tra loi MOI NHAT (cuon theo dong tin nhan, khong chiem
+  // khong gian co dinh), va tu dong go bo goi y cua luot truoc do khi 1 cau hoi moi duoc gui.
+  let currentSuggestionsRow = null;
+  function clearSuggestions() {
+    if (currentSuggestionsRow) { currentSuggestionsRow.remove(); currentSuggestionsRow = null; }
+  }
+  function renderSuggestions() {
+    clearSuggestions();
+    const row = document.createElement('div');
+    row.className = 'chatbot-suggestions';
+    row.innerHTML = SUGGESTIONS.map((s) => `<button type="button" class="chatbot-chip">${s}</button>`).join('');
+    row.querySelectorAll('.chatbot-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        input.value = chip.textContent;
+        sendMessage();
+      });
     });
-  });
+    messagesBox.appendChild(row);
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+    currentSuggestionsRow = row;
+  }
+  renderSuggestions();
 
   function togglePanel(open) {
     isOpen = open !== undefined ? open : !isOpen;
@@ -313,9 +328,11 @@
       } else {
         appendMessage(result.message, 'bot');
       }
+      renderSuggestions();
     } catch (err) {
       removeTypingIndicator();
       appendMessage('Không kiểm tra được điều kiện, vui lòng thử lại.', 'bot');
+      renderSuggestions();
     }
   }
 
@@ -334,12 +351,15 @@
       removeTypingIndicator();
       if (!res.ok) {
         appendMessage(result.error || 'Mã Re-entry không hợp lệ hoặc đã hết hạn.', 'bot');
+        renderSuggestions();
         return;
       }
       appendMessage(`Đã xác nhận! Số thứ tự ${result.ticket.ticket_number} của bạn đã được chèn trở lại hàng đợi ưu tiên. Vui lòng theo dõi Bảng LED/Loa.`, 'bot');
+      renderSuggestions();
     } catch (err) {
       removeTypingIndicator();
       appendMessage('Không xử lý được mã Re-entry, vui lòng thử lại.', 'bot');
+      renderSuggestions();
     }
   }
   async function handleReentryAnswer(text) {
@@ -355,7 +375,7 @@
     const text = (presetText !== undefined ? presetText : input.value).trim();
     if (!text || isSending) return;
 
-    suggestionsBox.remove(); // chi hien goi y ban dau, an di sau cau hoi dau tien
+    clearSuggestions(); // an goi y cua luot truoc, se hien lai goi y moi sau khi co cau tra loi
     appendMessage(text, 'user');
     input.value = '';
 
@@ -383,6 +403,7 @@
 
       if (!res.ok) {
         appendMessage(data.error || 'Đã có lỗi xảy ra, vui lòng thử lại.', 'bot');
+        renderSuggestions();
         return;
       }
 
@@ -390,12 +411,14 @@
       history.push({ role: 'user', content: text });
       history.push({ role: 'assistant', content: data.reply });
 
-      // Khong await: khong lam cham viec mo lai nut gui/xoa typing indicator. Neu Dich vu
-      // Wi-Fi cuc bo chua chay tren may nay, appendWifiCard() tu lang le bo qua, khong lam sao.
-      if (isWifiQuestion(text)) appendWifiCard();
+      // Cho the Wi-Fi (neu co) hien xong roi moi hien lai goi y, de dung thu tu: tra loi -> the
+      // Wi-Fi -> goi y. Khong await ca chuoi nay o muc sendMessage() de khong lam cham viec mo
+      // lai nut gui/xoa typing indicator (xem finally ben duoi).
+      (isWifiQuestion(text) ? appendWifiCard() : Promise.resolve()).then(renderSuggestions);
     } catch (err) {
       removeTypingIndicator();
       appendMessage('Không thể kết nối tới trợ lý AI. Vui lòng kiểm tra kết nối mạng.', 'bot');
+      renderSuggestions();
     } finally {
       isSending = false;
       sendBtn.disabled = false;
@@ -418,7 +441,7 @@
     const token = new URLSearchParams(window.location.search).get('reentry');
     if (!token) return;
     togglePanel(true);
-    suggestionsBox.remove();
+    clearSuggestions();
     appendMessage(`Mã Re-entry: ${token}`, 'user');
     processReentryToken(token);
   })();
