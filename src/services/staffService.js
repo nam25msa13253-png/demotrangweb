@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const { withTransaction } = require('../config/db');
 const staffRepo = require('../repositories/staffRepository');
 const auditRepo = require('../repositories/auditRepository');
+const authService = require('./authService');
 const { newId } = require('../utils/uuid');
 
 // Admin (SUPER_ADMIN) chi duoc tao tai khoan cho 3 vai tro van hanh nay qua man Quan ly Tai
@@ -35,23 +36,29 @@ async function createStaff({ fullName, username, password, role }, adminId) {
 
 // Khoa/Mo tai khoan thay vi xoa - bao toan tham chieu Audit Trail / lich su quay / ve da xu ly.
 async function setStaffActive(staffId, isActive, adminId) {
-  return withTransaction(async (client) => {
+  const updated = await withTransaction(async (client) => {
     const target = await staffRepo.findById(client, staffId);
     if (!target) throw new Error('Tai khoan khong ton tai.');
     if (target.role === 'SUPER_ADMIN') throw new Error('Khong the khoa tai khoan Super Admin.');
 
-    const updated = await staffRepo.updateActive(client, staffId, isActive);
+    const result = await staffRepo.updateActive(client, staffId, isActive);
     await auditRepo.insertLog(client, {
       adminId, action: isActive ? 'STAFF_ACTIVATED' : 'STAFF_DEACTIVATED', targetType: 'STAFF', targetId: staffId,
       reason: isActive ? 'Kich hoat lai tai khoan' : 'Khoa tai khoan'
     });
-    return updated;
+    return result;
   });
+
+  // Khoa tai khoan phai thu hoi ngay phien dang nhap dang mo (neu co) - khong the doi phien
+  // do tu het han tu nhien (toi da 8 gio), neu khong tai khoan da bi khoa van thao tac duoc
+  // tiep them nhieu gio bang token cu.
+  if (!isActive) await authService.revokeAllSessionsForStaff(staffId);
+  return updated;
 }
 
 async function resetStaffPassword(staffId, newPassword, adminId) {
   if (!newPassword || newPassword.length < 6) throw new Error('Mat khau can toi thieu 6 ky tu.');
-  return withTransaction(async (client) => {
+  await withTransaction(async (client) => {
     const target = await staffRepo.findById(client, staffId);
     if (!target) throw new Error('Tai khoan khong ton tai.');
 
@@ -61,6 +68,8 @@ async function resetStaffPassword(staffId, newPassword, adminId) {
       adminId, action: 'STAFF_PASSWORD_RESET', targetType: 'STAFF', targetId: staffId, reason: 'Dat lai mat khau'
     });
   });
+  // Dat lai mat khau (thuong do nghi lo tai khoan) nen thu hoi luon phien dang nhap cu con dang mo.
+  await authService.revokeAllSessionsForStaff(staffId);
 }
 
 module.exports = { listStaff, createStaff, setStaffActive, resetStaffPassword };

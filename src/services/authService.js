@@ -28,14 +28,29 @@ async function login(username, password) {
 }
 
 async function verifyToken(token) {
-  const { rows } = await pool.query('SELECT * FROM staff_sessions WHERE token = ?', [token]);
+  // JOIN voi staff.is_active: neu khong chi doc rieng bang staff_sessions, 1 tai khoan vua bi
+  // Admin khoa (setStaffActive isActive=false) van dung duoc token cu cho toi khi het han (toi
+  // da 8 gio) vi phien dang nhap khong tu dong mat theo trang thai khoa cua tai khoan - phai
+  // kiem tra ca 2 dieu kien trong cung 1 lan doc.
+  const { rows } = await pool.query(
+    `SELECT ss.*, s.is_active AS staff_is_active FROM staff_sessions ss
+     JOIN staff s ON s.id = ss.staff_id WHERE ss.token = ?`,
+    [token]
+  );
   const session = rows[0];
   if (!session) return null;
-  if (new Date(session.expires_at).getTime() < Date.now()) {
+  if (new Date(session.expires_at).getTime() < Date.now() || !session.staff_is_active) {
     await pool.query('DELETE FROM staff_sessions WHERE token = ?', [token]);
     return null;
   }
   return { staffId: session.staff_id, role: session.role, fullName: session.full_name };
+}
+
+// Thu hoi toan bo phien dang nhap cua 1 can bo - goi khi khoa tai khoan (setStaffActive) hoac
+// dat lai mat khau (resetStaffPassword), de dam bao token cu (con dang mo o thiet bi khac)
+// khong con dung duoc ngay lap tuc thay vi phai cho het han tu nhien (toi da 8 gio).
+async function revokeAllSessionsForStaff(staffId) {
+  await pool.query('DELETE FROM staff_sessions WHERE staff_id = ?', [staffId]);
 }
 
 async function logout(token) {
@@ -52,4 +67,4 @@ function startExpiredSessionCleanup() {
   }, CLEANUP_INTERVAL_MS).unref();
 }
 
-module.exports = { login, verifyToken, logout, startExpiredSessionCleanup };
+module.exports = { login, verifyToken, logout, revokeAllSessionsForStaff, startExpiredSessionCleanup };
