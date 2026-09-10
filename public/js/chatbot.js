@@ -35,6 +35,10 @@
   let pendingAction = null; // null | 'AWAIT_VNEID_LEVEL' | 'AWAIT_REENTRY_TOKEN'
   const DVC_KEYWORDS = ['dvc', 'dich vu cong', 'nop truc tuyen', 'vneid', 'nop online', 'nop qua mang'];
   const REENTRY_KEYWORDS = ['bo sung ho so', 'quet ma', 're-entry', 'reentry', 'ma qr', 'quet qr'];
+  // Cho phep thoat khoi 1 luong dang cho tra loi (pendingAction) giua chung, vd dang duoc hoi
+  // "Muc 1 hay Muc 2" nhung nguoi dung doi y muon hoi chuyen khac - neu khong co loi thoat nay,
+  // moi tin nhan tiep theo se bi "nuot" vao luong cu mai (xem sendMessage() ben duoi).
+  const CANCEL_KEYWORDS = ['huy', 'thoat', 'bo qua', 'khong can nua', 'doi cau hoi'];
 
   const widgetHtml = `
     <div class="chatbot-widget">
@@ -382,12 +386,26 @@
     appendMessage(text, 'user');
     input.value = '';
 
+    const normalizedTrigger = unaccentVi(text).toLowerCase();
+
+    // Neu dang co 1 luong cho tra loi (pendingAction) nhung nguoi dung go tu huy, hoac go trung
+    // 1 chu de hoan toan khac (DVC/Re-entry) - huy luong cu truoc, khong de no "giam" moi tin
+    // nhan tiep theo (VD dang cho "Muc 1 hay Muc 2" nhung nguoi dung doi sang hoi Wi-Fi).
+    if (pendingAction && CANCEL_KEYWORDS.some((k) => normalizedTrigger.includes(k))) {
+      pendingAction = null;
+      appendMessage('Đã huỷ yêu cầu trước đó. Bạn cần hỏi gì tiếp?', 'bot');
+      renderSuggestions();
+      return;
+    }
+    if (pendingAction && (DVC_KEYWORDS.some((k) => normalizedTrigger.includes(k)) || REENTRY_KEYWORDS.some((k) => normalizedTrigger.includes(k)))) {
+      pendingAction = null;
+    }
+
     // DVC/Re-entry can hoi lai 1 thong tin truoc khi goi API that - xu ly rieng, khong di qua
     // /api/chatbot/ask (chi tra loi van ban, khong thuc hien duoc hanh dong that).
     if (pendingAction === 'AWAIT_VNEID_LEVEL') return handleVneidAnswer(text);
     if (pendingAction === 'AWAIT_REENTRY_TOKEN') return handleReentryAnswer(text);
 
-    const normalizedTrigger = unaccentVi(text).toLowerCase();
     if (DVC_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleDvcRequest();
     if (REENTRY_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleReentryRequest();
 
