@@ -1,11 +1,12 @@
-// Kiem tra logic dieu phoi hang doi (queueEngine.js) MA KHONG can Postgres that: thay vi mock
-// tung cau SQL (kho doc vi queueEngine goi qua nhieu lop repository), ta thay the TOAN BO ham
-// cua tung repository + configService bang ban gia lap doc/ghi tren 1 "CSDL gia" nam trong bo
-// nho (bien `state` duoi day). Vi cac repository/configService la module singleton (CommonJS
-// cache theo duong dan tuyet doi), gan de len property cua chung se co hieu luc ngay ca voi
-// tham chieu ma queueEngine.js da require - CHI RIENG `withTransaction` la bi destructure
-// truc tiep luc top-level (`const { withTransaction } = require(...)`) nen phai xoa
-// require.cache cua queueEngine truoc moi test de no doc lai ban gia lap moi nhat.
+// Kiem tra logic dieu phoi hang doi (src/services/queueEngine/ - da tach thanh 4 file theo
+// nhom chuc nang, xem index.js trong thu muc do) MA KHONG can Postgres that: thay vi mock tung
+// cau SQL (kho doc vi queueEngine goi qua nhieu lop repository), ta thay the TOAN BO ham cua
+// tung repository + configService bang ban gia lap doc/ghi tren 1 "CSDL gia" nam trong bo nho
+// (bien `state` duoi day). Vi cac repository/configService/db la module singleton (CommonJS
+// cache theo duong dan tuyet doi) va queueEngine doc chung qua property (`db.withTransaction`,
+// khong destructure), gan de len property se co hieu luc ngay ca voi tham chieu queueEngine da
+// require - van xoa require.cache cua ca 4 file moi test de dam bao noShowTimers (Map trong
+// ticketLifecycle.js) luon la ban moi, tranh timer/trang thai ri ra giua cac test.
 //
 // Luu y quan trong: cac ham co the kich hoat scheduleNoShowTimeout (callNext, va handleNoShow
 // nhanh REQUEUED vi no tu dong goi lai callNext) se tao 1 setTimeout that. Neu khong huy bang
@@ -47,9 +48,9 @@ function cloneTicket(t) { return t ? { ...t } : null; }
 beforeEach(() => {
   resetState();
 
-  // Client gia dung cho 2 truy van SQL tho ma queueEngine.js goi truc tiep (khong qua
-  // repository): tra cuu danh muc cung `priority_reasons` va tinh MIN(queue_position) dung
-  // trong ca reentryScan lan priorityInject.
+  // Client gia dung cho 2 truy van SQL tho ma queueEngine goi truc tiep (khong qua repository,
+  // xem ticketLifecycle.js/reentryScan va priorityAndRebalance.js/priorityInject): tra cuu
+  // danh muc cung `priority_reasons` va tinh MIN(queue_position).
   const fakeClient = {
     query: async (sql, params) => {
       if (sql.includes('priority_reasons')) {
@@ -157,7 +158,12 @@ beforeEach(() => {
 
   auditRepo.insertLog = async (_client, entry) => { state.auditLogs.push(entry); };
 
-  delete require.cache[require.resolve('../src/services/queueEngine')];
+  // queueEngine.js da duoc tach thanh thu muc queueEngine/ (index.js + ticketLifecycle.js +
+  // priorityAndRebalance.js + adminActions.js) - phai xoa cache CA 4 file, khong chi index.js,
+  // vi tung file con destructure db.withTransaction rieng luc top-level (xem ghi chu dau file
+  // nay) nen neu con cache cu se giu tham chieu withTransaction CHUA duoc mock cua test nay.
+  ['queueEngine', 'queueEngine/ticketLifecycle', 'queueEngine/priorityAndRebalance', 'queueEngine/adminActions']
+    .forEach((p) => delete require.cache[require.resolve(`../src/services/${p}`)]);
 });
 
 test('createTicket: gan vao quay it tai nhat (Least Queue Depth) trong cung linh vuc', async () => {

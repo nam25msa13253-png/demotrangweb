@@ -1,0 +1,326 @@
+// Vong doi 1 ve tu luc cap STT toi khi Hoan tat/Huy: cap so, goi so, tiep nhan, No-Show
+// 3-Strike, Two-way Inspection Branching (Hoan tat/Bo sung), Re-entry. Cac ham nay goi cheo
+// lan nhau kha nhieu (VD scheduleNoShowTimeout -> handleNoShow -> callNext -> lai
+// scheduleNoShowTimeout, tao thanh vong lap phuc vu quay lien tuc) nen giu chung 1 file thay vi
+// tach nho hon nua - tach tiep se phai dung require vong (circular) giua cac file, de gay loi
+// tinh vi hon la giu nguyen. Xem index.js cung thu muc de biet cac nhom khac (priorityAndRebalance,
+// adminActions) da tach rieng vi khong co phu thuoc vong nhu the nay.
+const crypto = require('crypto');
+const db = require('../../config/db');
+const configService = require('../../config/configService');
+const ticketRepo = require('../../repositories/ticketRepository');
+const counterRepo = require('../../repositories/counterRepository');
+const serviceRepo = require('../../repositories/serviceRepository');
+const wsHub = require('../../websocket/wsHub');
+
+// Bo dinh thoi Call Timeout 45s trong bo nho: ticketId -> Timeout handle.
+// Khi timer no ma ve van con o trang thai CALLING => tu dong kich hoat No-Show.
+const noShowTimers = new Map();
+
+function scheduleNoShowTimeout(ticketId, seconds) {
+  clearNoShowTimeout(ticketId);
+  const handle = setTimeout(() => {
+    noShowTimers.delete(ticketId);
+    handleNoShow(ticketId).catch((err) => console.error('[queueEngine] Loi xu ly No-Show:', err));
+  }, seconds * 1000);
+  noShowTimers.set(ticketId, handle);
+}
+
+function clearNoShowTimeout(ticketId) {
+  const handle = noShowTimers.get(ticketId);
+  if (handle) {
+    clearTimeout(handle);
+    noShowTimers.delete(ticketId);
+  }
+}
+
+// KHONG doc ten cong dan: citizen_name hien chi la ten dat cho ("Khach tai Kiosk", "Cong dan
+// uu tien"...) chu khong phai ten that (he thong khong con thu thap ten/SDT that de bao ve
+// rieng tu, xem [[an PII cong dan tren Admin]]) - doc len se rat ky va vo nghia. Chi doc
+// So thu tu + thu tuc + quay, dung phong cach loa PA hanh chinh cong thuc te.
+function buildAnnouncement(ticket, service, counter) {
+  const alias = service.short_alias || service.name;
+  return `Mời số ${ticket.ticket_number}, làm thủ tục ${alias}, đến ${counter.name}`;
+}
+
+// -----------------------------------------------------------------------------------
+// Cap so thu tu (STT): tien to theo linh vuc (VD A-101), gan quay theo Least Queue Depth.
+// -----------------------------------------------------------------------------------
+async function createTicket({ serviceId, citizenName, phone }) {
+  return db.withTransaction(async (client) => {
+    const service = await serviceRepo.findServiceById(client, serviceId);
+    if (!service) throw new Error('Thu tuc khong ton tai.');
+
+    const counter = await counterRepo.findLeastLoadedByField(client, service.field_id);
+    if (!counter) {
+      const err = new Error('Hien tai khong co quay nao dang mo cho linh vuc nay. Vui long quay lai sau.');
+      err.code = 'NO_COUNTER_AVAILABLE';
+      throw err;
+    }
+
+    const countToday = await ticketRepo.countTodayByField(client, service.field_id);
+    const ticketNumber = `${service.ticket_prefix}-${100 + countToday + 1}`;
+    const tailPosition = (await ticketRepo.maxQueuePositionForCounter(client, counter.id)) + 1;
+
+    const ticket = await ticketRepo.insertTicket(client, {
+      ticketNumber, serviceId, counterId: counter.id, citizenName, phone, queuePosition: tailPosition
+    });
+    await ticketRepo.insertHistory(client, {
+      ticketId: ticket.id, fromStatus: null, toStatus: 'QUEUED', counterId: counter.id,
+      eventData: { event: 'TICKET_CREATED' }
+    });
+
+    wsHub.broadcast(wsHub.EVENTS.TICKET_CREATED, { ticket, counterId: counter.id });
+    return { ticket, counter, service };
+  });
+}
+
+// -----------------------------------------------------------------------------------
+// Goi so tiep theo: Keo ve tu Ready Slot -> Active Slot, kich hoat dem nguoc 45s.
+// -----------------------------------------------------------------------------------
+async function callNext(counterId, officerId) {
+  const result = await db.withTransaction(async (client) => {
+    const counter = await counterRepo.lockById(client, counterId);
+    if (!counter) throw new Error('Quay khong ton tai.');
+    if (counter.status !== 'OPEN') throw new Error('Quay dang khong o trang thai Hoat dong.');
+    if (counter.active_ticket_id) throw new Error('Quay dang co ve dang xu ly, khong the goi so moi.');
+
+    const nextTicket = await ticketRepo.findNextQueuedForCounter(client, counterId);
+    if (!nextTicket) return null; // Hang doi rong
+
+    const updated = await ticketRepo.updateStatus(client, nextTicket.id, {
+      status: 'CALLING', called_at: new Date(), counter_id: counterId
+    });
+    await counterRepo.setActiveTicket(client, counterId, updated.id);
+    await ticketRepo.insertHistory(client, {
+      ticketId: updated.id, fromStatus: 'QUEUED', toStatus: 'CALLING', counterId, officerId,
+      eventData: { event: 'CALL_NEXT' }
+    });
+
+    const service = await serviceRepo.findServiceById(client, updated.service_id);
+    return { ticket: updated, counter, service };
+  });
+
+  if (!result) {
+    wsHub.broadcast(wsHub.EVENTS.CALL_NEXT, { counterId, ticket: null, message: 'Hang doi trong.' });
+    return null;
+  }
+
+  const timeoutSeconds = await configService.get('CALL_TIMEOUT_SECONDS');
+  scheduleNoShowTimeout(result.ticket.id, timeoutSeconds);
+
+  const announcement = buildAnnouncement(result.ticket, result.service, result.counter);
+  wsHub.broadcast(wsHub.EVENTS.CALL_NEXT, {
+    ticket: result.ticket, counter: result.counter, announcement, timeoutSeconds
+  });
+  return result;
+}
+
+// -----------------------------------------------------------------------------------
+// Khach co mat: Can bo bam "Tiep nhan" -> dung dem nguoc, chuyen PROCESSING.
+// -----------------------------------------------------------------------------------
+async function acceptTicket(ticketId, officerId) {
+  const result = await db.withTransaction(async (client) => {
+    const ticket = await ticketRepo.lockTicketById(client, ticketId);
+    if (!ticket) throw new Error('Ve khong ton tai.');
+    if (ticket.status !== 'CALLING') throw new Error('Ve khong o trang thai dang goi (CALLING).');
+
+    const updated = await ticketRepo.updateStatus(client, ticketId, {
+      status: 'PROCESSING', processing_at: new Date()
+    });
+    await ticketRepo.insertHistory(client, {
+      ticketId, fromStatus: 'CALLING', toStatus: 'PROCESSING', counterId: ticket.counter_id, officerId,
+      eventData: { event: 'ACCEPT' }
+    });
+    return updated;
+  });
+
+  clearNoShowTimeout(ticketId);
+  wsHub.broadcast(wsHub.EVENTS.TICKET_PROCESSING, { ticket: result });
+  return result;
+}
+
+// -----------------------------------------------------------------------------------
+// Thuat toan Dynamic Head-to-Tail Shift & 3-Strike Drop.
+// Kich hoat tu dong khi het 45s (hoac Admin bam thu cong "Vang mat").
+// -----------------------------------------------------------------------------------
+async function handleNoShow(ticketId) {
+  const maxRetry = await configService.get('MAX_RETRY_COUNT');
+
+  const result = await db.withTransaction(async (client) => {
+    const ticket = await ticketRepo.lockTicketById(client, ticketId);
+    if (!ticket || ticket.status !== 'CALLING') return null; // da duoc xu ly (vd da Tiep nhan) truoc khi timer no
+
+    const newRetryCount = ticket.retry_count + 1;
+    await counterRepo.setActiveTicket(client, ticket.counter_id, null); // giai phong Active Slot
+
+    if (newRetryCount < maxRetry) {
+      const tailPos = (await ticketRepo.maxQueuePositionForCounter(client, ticket.counter_id)) + 1;
+      const updated = await ticketRepo.updateStatus(client, ticketId, {
+        status: 'QUEUED', retry_count: newRetryCount, queue_position: tailPos, called_at: null
+      });
+      await ticketRepo.insertHistory(client, {
+        ticketId, fromStatus: 'CALLING', toStatus: 'QUEUED', counterId: ticket.counter_id,
+        eventData: { event: 'NO_SHOW', retry_count: newRetryCount }
+      });
+      return { outcome: 'REQUEUED', ticket: updated, counterId: ticket.counter_id };
+    }
+
+    // 3-Strike Drop: huy ve vinh vien
+    const updated = await ticketRepo.updateStatus(client, ticketId, {
+      status: 'CANCELLED', retry_count: newRetryCount, cancelled_at: new Date()
+    });
+    await ticketRepo.insertHistory(client, {
+      ticketId, fromStatus: 'CALLING', toStatus: 'CANCELLED', counterId: ticket.counter_id,
+      eventData: { event: 'NO_SHOW_3_STRIKE_DROP', retry_count: newRetryCount }
+    });
+    return { outcome: 'CANCELLED', ticket: updated, counterId: ticket.counter_id };
+  });
+
+  if (!result) return null;
+
+  if (result.outcome === 'REQUEUED') {
+    // TODO-tich-hop: goi Gateway SMS/Zalo that de gui "STT xxx da doi lich, vui long cho goi lai".
+    wsHub.broadcast(wsHub.EVENTS.TIMEOUT_NO_SHOW, {
+      ticket: result.ticket, counterId: result.counterId, outcome: 'REQUEUED',
+      notice: `SMS/Zalo: STT ${result.ticket.ticket_number} vang mat, da doi xuong cuoi hang doi (lan ${result.ticket.retry_count}/${await configService.get('MAX_RETRY_COUNT')}).`
+    });
+  } else {
+    wsHub.broadcast(wsHub.EVENTS.TICKET_CANCELLED, {
+      ticket: result.ticket, counterId: result.counterId, outcome: 'CANCELLED_3_STRIKE',
+      notice: `SMS/Zalo: STT ${result.ticket.ticket_number} da bi huy do vang mat 3 lan lien tiep.`
+    });
+  }
+
+  // Tu dong kich hoat goi luot ke tiep (tiep tuc vong lap phuc vu quay)
+  await callNext(result.counterId, null).catch((err) => console.error('[queueEngine] auto callNext loi:', err));
+  return result;
+}
+
+// Cho phep Can bo/Admin chu dong bam "Vang mat" thay vi cho het 45s.
+async function manualNoShow(ticketId) {
+  clearNoShowTimeout(ticketId);
+  return handleNoShow(ticketId);
+}
+
+// -----------------------------------------------------------------------------------
+// Tham dinh Phan nhanh 2 Luong (Two-way Inspection Branching)
+// -----------------------------------------------------------------------------------
+
+// Nhanh Dat 100%: PROCESSING -> COMPLETED. Ho tro Undo Buffer (5s).
+async function completeTicket(ticketId, officerId) {
+  const undoBufferSeconds = await configService.get('UNDO_BUFFER_SECONDS');
+
+  const result = await db.withTransaction(async (client) => {
+    const ticket = await ticketRepo.lockTicketById(client, ticketId);
+    if (!ticket) throw new Error('Ve khong ton tai.');
+    if (ticket.status !== 'PROCESSING') throw new Error('Ve khong o trang thai dang xu ly (PROCESSING).');
+
+    const service = await serviceRepo.findServiceById(client, ticket.service_id);
+    const now = new Date();
+    const durationSeconds = Math.round((now - new Date(ticket.processing_at)) / 1000);
+    const slaStatus = durationSeconds <= service.sla_minutes * 60 ? 'ON_TIME' : 'LATE';
+
+    const updated = await ticketRepo.updateStatus(client, ticketId, {
+      status: 'COMPLETED', completed_at: now, handling_duration_seconds: durationSeconds, sla_status: slaStatus
+    });
+    await counterRepo.setActiveTicket(client, ticket.counter_id, null); // giai phong Active Slot
+    await ticketRepo.insertHistory(client, {
+      ticketId, fromStatus: 'PROCESSING', toStatus: 'COMPLETED', counterId: ticket.counter_id, officerId,
+      eventData: { event: 'COMPLETE', handling_duration_seconds: durationSeconds, sla_status: slaStatus }
+    });
+    return { ticket: updated, counterId: ticket.counter_id };
+  });
+
+  wsHub.broadcast(wsHub.EVENTS.TICKET_COMPLETED, {
+    ticket: result.ticket, counterId: result.counterId, undoBufferSeconds
+  });
+  return result;
+}
+
+// Hoan tac trong Undo Buffer Delay neu can bo bam nham nut "Hoan tat".
+async function undoComplete(ticketId, officerId) {
+  const undoBufferSeconds = await configService.get('UNDO_BUFFER_SECONDS');
+
+  const result = await db.withTransaction(async (client) => {
+    const ticket = await ticketRepo.lockTicketById(client, ticketId);
+    if (!ticket) throw new Error('Ve khong ton tai.');
+    if (ticket.status !== 'COMPLETED') throw new Error('Chi co the hoan tac ve vua duoc Hoan tat.');
+
+    const elapsedSeconds = (Date.now() - new Date(ticket.completed_at).getTime()) / 1000;
+    if (elapsedSeconds > undoBufferSeconds) {
+      throw new Error(`Da het thoi gian hoan tac (${undoBufferSeconds}s).`);
+    }
+
+    const updated = await ticketRepo.updateStatus(client, ticketId, {
+      status: 'PROCESSING', completed_at: null, handling_duration_seconds: null, sla_status: null
+    });
+    await counterRepo.setActiveTicket(client, ticket.counter_id, ticket.id);
+    await ticketRepo.insertHistory(client, {
+      ticketId, fromStatus: 'COMPLETED', toStatus: 'PROCESSING', counterId: ticket.counter_id, officerId,
+      eventData: { event: 'UNDO_COMPLETE' }
+    });
+    return { ticket: updated, counterId: ticket.counter_id };
+  });
+
+  wsHub.broadcast(wsHub.EVENTS.TICKET_PROCESSING, { ticket: result.ticket, undone: true });
+  return result;
+}
+
+// Nhanh Sai/Thieu: PROCESSING -> SUPP_PENDING, cap ma QR Re-entry, giai phong quay ngay.
+async function requestSupplement(ticketId, missingDocCodes, officerId) {
+  const result = await db.withTransaction(async (client) => {
+    const ticket = await ticketRepo.lockTicketById(client, ticketId);
+    if (!ticket) throw new Error('Ve khong ton tai.');
+    if (ticket.status !== 'PROCESSING') throw new Error('Ve khong o trang thai dang xu ly (PROCESSING).');
+
+    const reentryToken = crypto.randomBytes(24).toString('hex');
+    const updated = await ticketRepo.updateStatus(client, ticketId, {
+      status: 'SUPP_PENDING', missing_doc_codes: JSON.stringify(missingDocCodes || []), reentry_qr_token: reentryToken
+    });
+    await counterRepo.setActiveTicket(client, ticket.counter_id, null); // giai phong quay ngay lap tuc
+    await ticketRepo.insertHistory(client, {
+      ticketId, fromStatus: 'PROCESSING', toStatus: 'SUPP_PENDING', counterId: ticket.counter_id, officerId,
+      eventData: { event: 'REQUEST_SUPPLEMENT', missing_doc_codes: missingDocCodes }
+    });
+    return { ticket: updated, counterId: ticket.counter_id };
+  });
+
+  wsHub.broadcast(wsHub.EVENTS.TICKET_SUPP_PENDING, {
+    ticket: result.ticket, reentryQrToken: result.ticket.reentry_qr_token
+  });
+  return result;
+}
+
+// Cong dan quet lai ma QR Re-entry sau khi bo sung tai Ban ke khai -> chen vao Active Slot + 2.
+async function reentryScan(token) {
+  const result = await db.withTransaction(async (client) => {
+    const ticket = await ticketRepo.findByReentryToken(client, token);
+    if (!ticket) throw new Error('Ma QR khong hop le hoac da duoc su dung.');
+
+    const minPos = await client.query(
+      `SELECT COALESCE(MIN(queue_position), 1) AS min_pos FROM tickets
+       WHERE counter_id = ? AND status = 'QUEUED'`,
+      [ticket.counter_id]
+    );
+    const newPosition = Number(minPos.rows[0].min_pos) - 1; // Active Slot + 2: uu tien ngay sau ve VIP dang co (neu co)
+
+    const updated = await ticketRepo.updateStatus(client, ticket.id, {
+      status: 'QUEUED', queue_position: newPosition, missing_doc_codes: null, reentry_qr_token: null
+    });
+    await ticketRepo.insertHistory(client, {
+      ticketId: ticket.id, fromStatus: 'SUPP_PENDING', toStatus: 'QUEUED', counterId: ticket.counter_id,
+      eventData: { event: 'REENTRY_SCAN' }
+    });
+    return updated;
+  });
+
+  wsHub.broadcast(wsHub.EVENTS.TICKET_REENTRY, { ticket: result });
+  return result;
+}
+
+module.exports = {
+  createTicket, callNext, acceptTicket, handleNoShow, manualNoShow,
+  completeTicket, undoComplete, requestSupplement, reentryScan,
+  clearNoShowTimeout, buildAnnouncement
+};
