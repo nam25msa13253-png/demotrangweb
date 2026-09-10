@@ -26,7 +26,7 @@ const FAKE_COUNTERS = [
 beforeEach(() => {
   db.pool.query = async (sql) => {
     if (sql.includes('FROM services')) return { rows: FAKE_SERVICES.map((s) => ({ ...s })) };
-    if (sql.includes('FROM counters')) return { rows: FAKE_COUNTERS.map((c) => ({ ...c })) };
+    if (sql.includes('FROM active_counters')) return { rows: FAKE_COUNTERS.map((c) => ({ ...c })) };
     throw new Error(`Cau SQL khong duoc gia lap trong test: ${sql}`);
   };
   delete require.cache[require.resolve('../src/services/ruleBasedAssistant')];

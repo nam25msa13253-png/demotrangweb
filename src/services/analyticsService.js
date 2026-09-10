@@ -43,10 +43,9 @@ async function getHeatmap() {
     SELECT c.id AS counter_id, c.code, c.name, c.status, sf.name AS field_name,
       SUM(CASE WHEN t.status = 'QUEUED' THEN 1 ELSE 0 END) AS waiting_count,
       ROUND((AVG(CASE WHEN t.status = 'QUEUED' THEN EXTRACT(EPOCH FROM (NOW() - t.created_at)) END) / 60.0)::numeric, 1) AS avg_wait_minutes
-    FROM counters c
+    FROM active_counters c
     JOIN service_fields sf ON sf.id = c.field_id
     LEFT JOIN tickets t ON t.counter_id = c.id AND t.status IN ('QUEUED','CALLING','PROCESSING')
-    WHERE c.is_deleted = 0
     GROUP BY c.id, sf.name
     ORDER BY c.code ASC
   `);

@@ -12,6 +12,7 @@ const staffService = require('../services/staffService');
 const staffRepo = require('../repositories/staffRepository');
 const wsHub = require('../websocket/wsHub');
 const { authenticate, requirePermission } = require('../middleware/auth');
+const { requireInt } = require('../utils/validate');
 
 const router = express.Router();
 router.use(authenticate);
@@ -52,23 +53,28 @@ router.post('/counters/:id/status', requirePermission('DISPATCH'), async (req, r
 
 router.post('/counters/:id/field', requirePermission('DISPATCH'), async (req, res) => {
   try {
-    const { fieldId, reason } = req.body;
-    const counter = await counterService.changeCounterField(Number(req.params.id), Number(fieldId), req.staff.staffId, reason);
+    const fieldId = requireInt(req.body.fieldId, 'Linh vuc (fieldId)');
+    const counter = await counterService.changeCounterField(Number(req.params.id), fieldId, req.staff.staffId, req.body.reason);
     res.json(counter);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    // foreign_key_violation (Postgres SQLSTATE) - VD fieldId khong ton tai trong service_fields.
+    const message = (err.code === '23503') ? 'Linh vuc khong ton tai.' : err.message;
+    res.status(400).json({ error: message });
   }
 });
 
 // Them/Sua/Xoa quay - moi phuong/xa co so luong quay khac nhau nen khong the co dinh nhu seed data mau.
 router.post('/counters', requirePermission('DISPATCH'), async (req, res) => {
   try {
-    const { code, name, fieldId } = req.body;
-    if (!code || !name || !fieldId) return res.status(400).json({ error: 'Thieu ma quay, ten quay hoac linh vuc.' });
-    const counter = await counterService.createCounter(String(code).trim().toUpperCase(), String(name).trim(), Number(fieldId), req.staff.staffId);
+    const { code, name } = req.body;
+    if (!code || !name) return res.status(400).json({ error: 'Thieu ma quay hoac ten quay.' });
+    const fieldId = requireInt(req.body.fieldId, 'Linh vuc (fieldId)');
+    const counter = await counterService.createCounter(String(code).trim().toUpperCase(), String(name).trim(), fieldId, req.staff.staffId);
     res.status(201).json(counter);
   } catch (err) {
-    const message = (err.code === '23505') ? 'Ma quay da ton tai.' : err.message; // unique_violation (Postgres SQLSTATE)
+    // unique_violation / foreign_key_violation (Postgres SQLSTATE)
+    const message = (err.code === '23505') ? 'Ma quay da ton tai.'
+      : (err.code === '23503') ? 'Linh vuc khong ton tai.' : err.message;
     res.status(400).json({ error: message });
   }
 });
@@ -106,11 +112,10 @@ router.post('/counters/:id/officer', requirePermission('DISPATCH'), async (req, 
 
 router.post('/rebalance', requirePermission('DISPATCH'), async (req, res) => {
   try {
-    const { fromCounterId, toCounterId, percent } = req.body;
-    const result = await queueEngine.forceRebalance({
-      fromCounterId: Number(fromCounterId), toCounterId: Number(toCounterId),
-      percent: Number(percent), adminId: req.staff.staffId
-    });
+    const fromCounterId = requireInt(req.body.fromCounterId, 'Quay nguon (fromCounterId)');
+    const toCounterId = requireInt(req.body.toCounterId, 'Quay dich (toCounterId)');
+    const percent = requireInt(req.body.percent, 'Ty le %');
+    const result = await queueEngine.forceRebalance({ fromCounterId, toCounterId, percent, adminId: req.staff.staffId });
     res.json({ movedCount: result.moved.length });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -125,9 +130,10 @@ router.get('/priority-reasons', requirePermission('PRIORITY_RESTORE'), async (re
 
 router.post('/priority-inject', requirePermission('PRIORITY_RESTORE'), async (req, res) => {
   try {
-    const { serviceId, citizenName, phone, priorityReasonCode, counterId } = req.body;
+    const { citizenName, phone, priorityReasonCode, counterId } = req.body;
+    const serviceId = requireInt(req.body.serviceId, 'Ma thu tuc (serviceId)');
     const result = await queueEngine.priorityInject({
-      serviceId: Number(serviceId), citizenName, phone, priorityReasonCode,
+      serviceId, citizenName, phone, priorityReasonCode,
       counterId: counterId ? Number(counterId) : null, adminId: req.staff.staffId
     });
     res.status(201).json(result);

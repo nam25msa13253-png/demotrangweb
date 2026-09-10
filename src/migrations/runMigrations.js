@@ -61,6 +61,16 @@ async function addStaffSessionsTable() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_staff_sessions_expires ON staff_sessions (expires_at)`);
 }
 
+// VIEW dung chung cho MOI truy van CHI DOC (bao cao/hien thi) can liet ke quay: tap trung
+// dieu kien "is_deleted = 0" o DUY NHAT 1 cho thay vi lap lai WHERE c.is_deleted = 0 o tung
+// query rieng le - da co lan quen filter nay o 4 noi khac nhau (Heatmap, Bang LED, Kiosk,
+// Chatbot grounding) khien quay da xoa mem van hien ra. Cac thao tac GHI (INSERT/UPDATE/
+// SELECT...FOR UPDATE trong transaction nghiep vu) van dung bang goc `counters` nhu cu qua
+// counterRepository.js - VIEW nay chi danh cho doc du lieu bao cao/hien thi.
+async function addActiveCountersView() {
+  await pool.query(`CREATE OR REPLACE VIEW active_counters AS SELECT * FROM counters WHERE is_deleted = 0`);
+}
+
 async function addWifiConfig() {
   // SSID/mat khau Wi-Fi hien la hang-code trong kioskRoutes.js - chuyen sang system_configs
   // de Admin tu cap nhat dung mang Wi-Fi THAT tai co so ngay tren Dashboard (tab "Cau hinh
@@ -79,6 +89,7 @@ async function run() {
   await addSoftDeleteToCounters();
   await addTrichLucHoTichService();
   await addStaffSessionsTable();
+  await addActiveCountersView();
   await addWifiConfig();
 }
 

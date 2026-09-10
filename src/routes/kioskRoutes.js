@@ -4,6 +4,7 @@ const serviceRepo = require('../repositories/serviceRepository');
 const formTemplateRepo = require('../repositories/formTemplateRepository');
 const queueEngine = require('../services/queueEngine');
 const configService = require('../config/configService');
+const { requireInt, requireString } = require('../utils/validate');
 
 const router = express.Router();
 
@@ -70,8 +71,9 @@ router.post('/dvc/check-vneid', (req, res) => {
 // CHECK GATE: Cong Tien kiem Du lieu. Neu du 100% -> cap STT (Two-way tai Kiosk truoc khi vao hang doi).
 router.post('/tickets', async (req, res) => {
   try {
-    const { serviceId, citizenName, phone, confirmedDocCodes } = req.body;
-    if (!serviceId || !citizenName) return res.status(400).json({ error: 'Thieu thong tin thu tuc/ho ten.' });
+    const { citizenName, phone, confirmedDocCodes } = req.body;
+    const serviceId = requireInt(req.body.serviceId, 'Ma thu tuc (serviceId)');
+    requireString(citizenName, 'Ho ten');
 
     const service = await serviceRepo.findServiceById(pool, serviceId);
     if (!service) return res.status(404).json({ error: 'Thu tuc khong ton tai.' });
@@ -115,10 +117,9 @@ router.get('/counters/status', async (req, res) => {
     const { rows } = await pool.query(`
       SELECT c.id, c.code, c.name, c.status, sf.name AS field_name,
         SUM(CASE WHEN t.status = 'QUEUED' THEN 1 ELSE 0 END) AS waiting_count
-      FROM counters c
+      FROM active_counters c
       JOIN service_fields sf ON sf.id = c.field_id
       LEFT JOIN tickets t ON t.counter_id = c.id AND t.status IN ('QUEUED','CALLING','PROCESSING')
-      WHERE c.is_deleted = 0
       GROUP BY c.id, sf.name ORDER BY c.code ASC
     `);
     res.json(rows);

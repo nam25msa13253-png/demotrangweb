@@ -101,6 +101,11 @@ CREATE TABLE counters (
 
 CREATE INDEX idx_counters_is_deleted ON counters (is_deleted);
 
+-- VIEW dung cho MOI truy van CHI DOC (bao cao/hien thi) can liet ke quay: tap trung dieu kien
+-- is_deleted = 0 o DUY NHAT 1 cho thay vi lap lai WHERE c.is_deleted = 0 thu cong o tung noi
+-- (xem them ghi chu trong src/migrations/runMigrations.js). Cac thao tac GHI van dung bang goc.
+CREATE OR REPLACE VIEW active_counters AS SELECT * FROM counters WHERE is_deleted = 0;
+
 CREATE TRIGGER trg_counters_updated_at BEFORE UPDATE ON counters
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 

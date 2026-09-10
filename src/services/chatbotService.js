@@ -32,10 +32,9 @@ async function buildGroundingContext() {
   const { rows: counters } = await pool.query(`
     SELECT c.code, c.name, c.status, sf.name AS field_name,
       SUM(CASE WHEN t.status = 'QUEUED' THEN 1 ELSE 0 END) AS waiting_count
-    FROM counters c
+    FROM active_counters c
     JOIN service_fields sf ON sf.id = c.field_id
     LEFT JOIN tickets t ON t.counter_id = c.id AND t.status IN ('QUEUED','CALLING','PROCESSING')
-    WHERE c.is_deleted = 0
     GROUP BY c.id, sf.name
     ORDER BY c.code ASC
   `);
