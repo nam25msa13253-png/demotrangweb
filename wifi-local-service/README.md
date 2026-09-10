@@ -15,6 +15,12 @@ máy Kiosk đặt tại quầy.
 
 ## Cách chạy
 
+**Khuyến nghị cho máy Kiosk thật**: bấm đúp **`install-autostart.bat`** 1 lần duy nhất — dịch
+vụ sẽ tự chạy ngầm mỗi khi đăng nhập Windows, không cần bấm gì thêm về sau. Xem chi tiết ở mục
+["Chạy tự động mỗi khi bật máy"](#chạy-tự-động-mỗi-khi-bật-máy--không-cần-bấm-start-wifi-servicebat-nữa-khuyến-nghị) bên dưới.
+
+**Chạy thủ công (để test nhanh, thấy log trực tiếp)**:
+
 1. Copy thư mục `wifi-local-service` này vào máy Kiosk (hoặc để nguyên nếu code đã có sẵn trên máy).
 2. Mở Command Prompt tại thư mục này, chạy:
    ```
@@ -22,25 +28,39 @@ máy Kiosk đặt tại quầy.
    node server.js
    ```
    Hoặc đơn giản hơn: **bấm đúp vào file `start-wifi-service.bat`** — file này tự cài thư viện
-   (lần đầu) và tự chạy dịch vụ.
+   (lần đầu) và tự chạy dịch vụ, có cửa sổ hiện log để theo dõi.
 3. Thấy dòng `Dang chay tai http://localhost:5000/api/current-wifi` là thành công. Để cửa sổ
    này chạy nền, không tắt đi.
 4. Mở trang Kiosk trên trình duyệt của máy này như bình thường — khi hỏi trợ lý AI về Wi-Fi
    (hoặc bấm nút "Kết nối Wi-Fi"), khung chat sẽ tự lấy đúng SSID/mật khẩu của máy này và hiện
    mã QR để người dân quét.
 
-## Chạy tự động mỗi khi bật máy (khuyến nghị cho máy Kiosk)
+## Chạy tự động mỗi khi bật máy — KHÔNG cần bấm `start-wifi-service.bat` nữa (khuyến nghị)
 
-Vì dịch vụ cần chạy liên tục nền, nên đặt lịch tự khởi động bằng Task Scheduler:
+Bấm đúp **`install-autostart.bat`** — **chỉ cần làm 1 lần duy nhất**. Script sẽ:
+
+1. Tự cài thư viện nếu chưa có.
+2. Tạo 1 lối tắt trong thư mục Khởi động (Startup) của Windows, chạy dịch vụ **ẩn hoàn toàn**
+   (không hiện cửa sổ đen) mỗi khi đăng nhập Windows.
+3. Tự khởi động dịch vụ ngay lập tức để kiểm tra luôn, không cần đăng xuất/khởi động lại máy.
+
+Từ lần đăng nhập Windows tiếp theo trở đi (kể cả sau khi khởi động lại máy), dịch vụ **tự chạy
+ngầm**, không cần mở file `.bat` nào nữa.
+
+- **Kiểm tra đang chạy chưa**: mở trình duyệt, vào `http://localhost:5000/health` — thấy
+  `{"ok":true}` là dịch vụ đang chạy.
+- **Tắt/gỡ tự động chạy**: bấm đúp `uninstall-autostart.bat`.
+- **Dừng dịch vụ đang chạy ẩn** (VD để cập nhật code): mở Task Manager (Ctrl+Shift+Esc) → tìm
+  tiến trình `Node.js JavaScript Runtime` → End Task. Lần đăng nhập sau nó sẽ tự chạy lại.
+
+### Cách khác: Task Scheduler (chỉ cần nếu muốn chạy TRƯỚC KHI đăng nhập, VD máy dùng chung không tự đăng nhập)
 
 1. Mở **Task Scheduler** → Create Task...
-2. Tab **General**: đặt tên (VD "Kiosk Wifi Service"), chọn "Run whether user is logged on or not"
-   nếu máy tự đăng nhập sẵn, hoặc để mặc định nếu máy luôn đăng nhập 1 tài khoản cố định.
-3. Tab **Triggers** → New... → chọn "At log on".
-4. Tab **Actions** → New... → Program/script: `node.exe` (hoặc đường dẫn đầy đủ, VD
-   `C:\Program Files\nodejs\node.exe`); Add arguments: `server.js`; Start in: đường dẫn đầy đủ
-   tới thư mục `wifi-local-service` này.
-5. Lưu lại. Từ lần khởi động máy sau, dịch vụ sẽ tự chạy nền, không cần bấm file `.bat` nữa.
+2. Tab **General**: đặt tên (VD "Kiosk Wifi Service"), chọn "Run whether user is logged on or not".
+3. Tab **Triggers** → New... → chọn "At startup" (thay vì "At log on").
+4. Tab **Actions** → New... → Program/script: `wscript.exe`; Add arguments: đường dẫn đầy đủ
+   tới `run-hidden.vbs` (VD `C:\wifi-local-service\run-hidden.vbs`).
+5. Lưu lại.
 
 ## Lưu ý bảo mật
 
@@ -58,7 +78,8 @@ Vì dịch vụ cần chạy liên tục nền, nên đặt lịch tự khởi �
 
 - `success: false, error: "... không có kết nối Wi-Fi nào ..."` → máy đang dùng dây mạng
   (Ethernet) hoặc chưa bật Wi-Fi.
-- Khung chat không hiện mã QR, không báo lỗi gì: dịch vụ chưa được khởi động trên máy này —
-  mở lại `start-wifi-service.bat`.
+- Khung chat không hiện mã QR, không báo lỗi gì: dịch vụ chưa chạy trên máy này — kiểm tra
+  `http://localhost:5000/health`; nếu không thấy `{"ok":true}`, chạy lại `install-autostart.bat`
+  (hoặc mở thủ công `start-wifi-service.bat` để xem log lỗi trực tiếp).
 - Tên mạng Wi-Fi hiện sai dấu tiếng Việt: đảm bảo đang chạy đúng bản `server.js` mới nhất (đã
   xử lý `chcp 65001` để đọc đúng UTF-8).
