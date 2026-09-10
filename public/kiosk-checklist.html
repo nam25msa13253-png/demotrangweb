@@ -8,8 +8,7 @@
 <link rel="stylesheet" href="css/kiosk.css" />
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
 </head>
-<body>
-<script>window.SHOW_HEADER_CLOCK = true;</script>
+<body data-show-header-clock="true">
 
 <div class="kiosk-wrap">
 
@@ -29,8 +28,8 @@
       <div id="checklistItems"></div>
       <div id="checklistResult"></div>
       <div class="step-nav">
-        <button class="btn btn-outline" onclick="goBackToSearch()">← Quay lại</button>
-        <button class="btn btn-primary btn-lg" onclick="submitCheckGate()">Xác nhận & Lấy số thứ tự</button>
+        <button class="btn btn-outline" data-action="goBackToSearch">← Quay lại</button>
+        <button class="btn btn-primary btn-lg" data-action="submitCheckGate">Xác nhận & Lấy số thứ tự</button>
       </div>
     </div>
   </section>
@@ -42,7 +41,7 @@
       <div id="ticketNumber" class="ticket-number">A-101</div>
       <p class="mt-16" id="ticketCounterName" style="font-size:1.3rem;font-weight:600;"></p>
       <p class="text-muted">Vui lòng theo dõi Bảng LED và lắng nghe Loa thông báo</p>
-      <button class="btn btn-primary btn-lg mt-24" onclick="goBackToSearch()">Hoàn tất</button>
+      <button class="btn btn-primary btn-lg mt-24" data-action="goBackToSearch">Hoàn tất</button>
     </div>
   </section>
 </div>
@@ -53,12 +52,13 @@
     <h2>📋 Hướng dẫn Bổ sung Hồ sơ</h2>
     <div id="missingDocsBox"></div>
     <div id="formLocationBox"></div>
-    <button class="btn btn-primary btn-block mt-16" onclick="closeModal('formTemplateModal')">Tôi đã chuẩn bị xong, Kiểm tra lại</button>
+    <button class="btn btn-primary btn-block mt-16" data-action="closeModal" data-args='["formTemplateModal"]'>Tôi đã chuẩn bị xong, Kiểm tra lại</button>
   </div>
 </div>
 
 <script src="js/apiClient.js"></script>
 <script src="js/toast.js"></script>
+<script src="js/actionDelegate.js"></script>
 <script src="js/kiosk-checklist.js"></script>
 <script src="js/header.js"></script>
 <script src="js/chatbot.js?v=3"></script>

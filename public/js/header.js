@@ -23,9 +23,12 @@
     return `<a href="${item.href}" class="site-nav-link${active ? ' active' : ''}">${item.label}</a>`;
   }).join('');
 
-  // window.SHOW_HEADER_CLOCK = true (dat truoc khi nhung header.js) de hien dong ho
-  // thoi gian thuc canh cac lien ket dieu huong - dung cho man hinh Kiosk cong khai.
-  const clockHtml = window.SHOW_HEADER_CLOCK ? `<span id="site-clock" class="site-clock"></span>` : '';
+  // data-show-header-clock="true" tren <body> (thay cho bien global truoc day - CSP script-src
+  // bat lai o server.js chan inline <script> nen khong the dat bien global truoc khi nhung
+  // header.js nua) de hien dong ho thoi gian thuc canh cac lien ket dieu huong - dung cho man
+  // hinh Kiosk cong khai.
+  const showClock = document.body.dataset.showHeaderClock === 'true';
+  const clockHtml = showClock ? `<span id="site-clock" class="site-clock"></span>` : '';
 
   // Nut tang co chu: chi hien o cac trang cong dan truc tiep thao tac (khong hien tren Bang
   // LED display.html - man hinh khong tuong tac, khong co ai bam vao do). Tang nhe (~8%,
@@ -48,7 +51,7 @@
 
   document.body.insertAdjacentHTML('afterbegin', headerHtml);
 
-  if (window.SHOW_HEADER_CLOCK) {
+  if (showClock) {
     const tick = () => { document.getElementById('site-clock').textContent = new Date().toLocaleString('vi-VN'); };
     tick();
     setInterval(tick, 1000);

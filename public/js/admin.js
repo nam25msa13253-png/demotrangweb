@@ -110,23 +110,23 @@ function counterRowHtml(c, fields, officers) {
           <span class="badge ${c.status === 'OPEN' ? 'badge-green' : c.status === 'PAUSED' ? 'badge-yellow' : 'badge-gray'}">${c.status}</span>
         </div>
         <div class="flex gap-8">
-          <button class="btn btn-success action-chip" onclick="changeCounterStatus(${c.id}, 'OPEN')">Mở</button>
-          <button class="btn btn-warning action-chip" onclick="changeCounterStatus(${c.id}, 'PAUSED')">Tạm dừng</button>
-          <button class="btn btn-danger action-chip" onclick="changeCounterStatus(${c.id}, 'CLOSED')">Đóng</button>
+          <button class="btn btn-success action-chip" ${actionAttr('changeCounterStatus', c.id, 'OPEN')}>Mở</button>
+          <button class="btn btn-warning action-chip" ${actionAttr('changeCounterStatus', c.id, 'PAUSED')}>Tạm dừng</button>
+          <button class="btn btn-danger action-chip" ${actionAttr('changeCounterStatus', c.id, 'CLOSED')}>Đóng</button>
         </div>
       </div>
       <div class="counter-row-bottom">
-        <select onchange="changeCounterField(${c.id}, this.value)">
+        <select ${actionAttr('changeCounterField', c.id, '$value')}>
           <option value="">Đổi lĩnh vực...</option>
           ${fields.map((f) => `<option value="${f.id}" ${f.id === c.field_id ? 'selected' : ''}>${f.name}</option>`).join('')}
         </select>
         <div class="flex gap-8">
-          <button class="btn btn-outline action-chip" onclick="editCounter(${c.id}, '${c.code}', '${c.name.replace(/'/g, "\\'")}')">✏️ Sửa</button>
-          <button class="btn btn-danger action-chip" onclick="deleteCounter(${c.id})">🗑️ Xóa</button>
+          <button class="btn btn-outline action-chip" ${actionAttr('editCounter', c.id, c.code, c.name)}>✏️ Sửa</button>
+          <button class="btn btn-danger action-chip" ${actionAttr('deleteCounter', c.id)}>🗑️ Xóa</button>
         </div>
       </div>
       <div class="counter-row-bottom">
-        <select onchange="changeCounterOfficer(${c.id}, this.value)">
+        <select ${actionAttr('changeCounterOfficer', c.id, '$value')}>
           <option value="">-- Chưa gán cán bộ --</option>
           ${officers.map((o) => `<option value="${o.id}" ${o.id === c.officer_id ? 'selected' : ''}>${o.full_name} (${o.username})${o.is_active ? '' : ' — đã khóa'}</option>`).join('')}
         </select>
@@ -146,8 +146,8 @@ function editCounter(counterId, code, name) {
       <input id="editName-${counterId}" value="${name}" style="max-width:200px;flex:1;" placeholder="Tên quầy" />
     </div>
     <div class="counter-row-bottom" style="justify-content:flex-end;">
-      <button class="btn btn-primary action-chip" onclick="saveCounterEdit(${counterId})">Lưu</button>
-      <button class="btn btn-outline action-chip" onclick="loadDispatch()">Hủy</button>
+      <button class="btn btn-primary action-chip" ${actionAttr('saveCounterEdit', counterId)}>Lưu</button>
+      <button class="btn btn-outline action-chip" ${actionAttr('loadDispatch')}>Hủy</button>
     </div>`;
 }
 
@@ -271,7 +271,7 @@ async function loadConfig() {
         </div>
         <div class="flex gap-8">
           <input id="cfg-${c.config_key}" value="${c.config_value}" />
-          <button class="btn btn-primary action-chip" onclick="saveConfig('${c.config_key}')">Lưu</button>
+          <button class="btn btn-primary action-chip" ${actionAttr('saveConfig', c.config_key)}>Lưu</button>
         </div>
       </div>`).join('');
 
@@ -340,8 +340,8 @@ async function loadStaffTab() {
           ${s.role === 'OFFICER' ? (s.counter_code ? `<span class="badge badge-yellow">Quầy ${s.counter_code}</span>` : '<span class="text-muted" style="font-size:0.85rem;">Chưa gán quầy — vào tab Điều phối để gán</span>') : ''}
         </div>
         <div class="flex gap-8">
-          <button class="btn btn-outline action-chip" onclick="resetStaffPassword('${s.id}')">🔑 Đặt lại mật khẩu</button>
-          ${s.role === 'SUPER_ADMIN' ? '' : `<button class="btn ${s.is_active ? 'btn-danger' : 'btn-success'} action-chip" onclick="toggleStaffActive('${s.id}', ${!s.is_active})">${s.is_active ? 'Khóa' : 'Kích hoạt'}</button>`}
+          <button class="btn btn-outline action-chip" ${actionAttr('resetStaffPassword', s.id)}>🔑 Đặt lại mật khẩu</button>
+          ${s.role === 'SUPER_ADMIN' ? '' : `<button class="btn ${s.is_active ? 'btn-danger' : 'btn-success'} action-chip" ${actionAttr('toggleStaffActive', s.id, !s.is_active)}>${s.is_active ? 'Khóa' : 'Kích hoạt'}</button>`}
         </div>
       </div>`).join('') || '<p class="text-muted">Chưa có tài khoản nào.</p>';
   } catch (err) { showToast(err.message, 'error'); }

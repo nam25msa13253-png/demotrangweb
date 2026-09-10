@@ -1,8 +1,11 @@
 // Widget Tro ly AI (ho tro Kiosk) - tu gan vao trang, chi can nhung <script src="js/chatbot.js">.
 // Doc lap voi apiClient.js de dung duoc tren moi trang (khong yeu cau dang nhap).
 //
-// De trang nao do tu mo san panel + goi y ngay khi vao trang (vd Trang chu), dat truoc script:
-//   <script>window.CHATBOT_AUTO_OPEN = true;</script>
+// De trang nao do tu mo san panel + goi y ngay khi vao trang (vd Trang chu), dat thuoc tinh
+// tren <body> (KHONG dung bien global qua inline <script> nua - CSP script-src bat lai o
+// src/server.js chan inline script):
+//   <body data-chatbot-auto-open="true">
+//   ...
 //   <script src="js/chatbot.js"></script>
 (function () {
   const SUGGESTIONS = [
@@ -429,7 +432,7 @@
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
   // Tu mo panel + hien goi y ngay khi vao trang (1 lan / phien trinh duyet) neu trang yeu cau.
-  if (window.CHATBOT_AUTO_OPEN && !sessionStorage.getItem('chatbotAutoOpened')) {
+  if (document.body.dataset.chatbotAutoOpen === 'true' && !sessionStorage.getItem('chatbotAutoOpened')) {
     sessionStorage.setItem('chatbotAutoOpened', '1');
     setTimeout(() => togglePanel(true), 1200);
   }

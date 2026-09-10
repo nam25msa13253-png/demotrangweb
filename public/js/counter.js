@@ -135,7 +135,7 @@ function renderActiveSlot() {
   if (!activeTicket) {
     box.innerHTML = '<p class="text-muted">Chưa có vé đang xử lý</p>';
     const canCall = myCounter.status === 'OPEN';
-    actions.innerHTML = `<button class="btn btn-primary btn-lg btn-block" ${canCall ? '' : 'disabled'} onclick="callNext()">📢 Gọi số tiếp theo</button>`;
+    actions.innerHTML = `<button class="btn btn-primary btn-lg btn-block" ${canCall ? '' : 'disabled'} ${actionAttr('callNext')}>📢 Gọi số tiếp theo</button>`;
     return;
   }
 
@@ -145,8 +145,8 @@ function renderActiveSlot() {
       <div>${activeTicket.citizen_name}</div>
       <div class="timer mt-16" id="countdownDisplay">45s</div>`;
     actions.innerHTML = `
-      <button class="btn btn-success" onclick="acceptTicket()">✅ Tiếp nhận</button>
-      <button class="btn btn-danger" onclick="markNoShow()">🚫 Vắng mặt</button>`;
+      <button class="btn btn-success" ${actionAttr('acceptTicket')}>✅ Tiếp nhận</button>
+      <button class="btn btn-danger" ${actionAttr('markNoShow')}>🚫 Vắng mặt</button>`;
     startCountdown();
     return;
   }
@@ -157,8 +157,8 @@ function renderActiveSlot() {
       <div>${activeTicket.citizen_name}</div>
       <span class="badge badge-blue mt-16">Đang xử lý</span>`;
     actions.innerHTML = `
-      <button class="btn btn-success" onclick="completeTicket()">✔️ Hoàn tất</button>
-      <button class="btn btn-warning" onclick="openSupplementModal()">📝 Yêu cầu Bổ sung</button>`;
+      <button class="btn btn-success" ${actionAttr('completeTicket')}>✔️ Hoàn tất</button>
+      <button class="btn btn-warning" ${actionAttr('openSupplementModal')}>📝 Yêu cầu Bổ sung</button>`;
   }
 }
 
@@ -199,7 +199,7 @@ function showUndoBar(ticket, seconds) {
   const actions = document.getElementById('actionRow');
   let remain = seconds;
   box.innerHTML = `<div class="num">${ticket.ticket_number}</div><span class="badge badge-green">Đã hoàn tất</span>`;
-  actions.innerHTML = `<button class="btn btn-outline btn-block" id="undoBtn" onclick="undoComplete('${ticket.id}')">↩️ Hoàn tác (<span id="undoCountdown">${remain}</span>s)</button>`;
+  actions.innerHTML = `<button class="btn btn-outline btn-block" id="undoBtn" ${actionAttr('undoComplete', ticket.id)}>↩️ Hoàn tác (<span id="undoCountdown">${remain}</span>s)</button>`;
   undoTimer = setInterval(() => {
     remain -= 1;
     const el = document.getElementById('undoCountdown');

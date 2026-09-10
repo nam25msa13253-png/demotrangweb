@@ -57,17 +57,17 @@
   <h1>🛡️ Admin Control Tower</h1>
   <div class="flex gap-16" style="align-items:center;">
     <span id="staffName" class="text-muted"></span>
-    <button class="btn btn-outline" onclick="logout()">Đăng xuất</button>
+    <button class="btn btn-outline" data-action="logout">Đăng xuất</button>
   </div>
 </div>
 
 <div class="container">
   <div class="tabs">
-    <button class="tab-btn active" data-tab="monitor" onclick="switchTab('monitor')"><span class="tab-emoji">📊</span><span>Giám sát Realtime</span></button>
-    <button class="tab-btn" data-tab="dispatch" onclick="switchTab('dispatch')"><span class="tab-emoji">🚦</span><span>Điều phối Khẩn cấp</span></button>
-    <button class="tab-btn" data-tab="config" onclick="switchTab('config')"><span class="tab-emoji">⚙️</span><span>Cấu hình Tham số</span></button>
-    <button class="tab-btn" data-tab="reports" onclick="switchTab('reports')"><span class="tab-emoji">📈</span><span>Báo cáo &amp; Audit</span></button>
-    <button class="tab-btn" data-tab="staff" onclick="switchTab('staff')" id="staffTabBtn"><span class="tab-emoji">👤</span><span>Quản lý Tài khoản</span></button>
+    <button class="tab-btn active" data-tab="monitor" data-action="switchTab" data-args='["monitor"]'><span class="tab-emoji">📊</span><span>Giám sát Realtime</span></button>
+    <button class="tab-btn" data-tab="dispatch" data-action="switchTab" data-args='["dispatch"]'><span class="tab-emoji">🚦</span><span>Điều phối Khẩn cấp</span></button>
+    <button class="tab-btn" data-tab="config" data-action="switchTab" data-args='["config"]'><span class="tab-emoji">⚙️</span><span>Cấu hình Tham số</span></button>
+    <button class="tab-btn" data-tab="reports" data-action="switchTab" data-args='["reports"]'><span class="tab-emoji">📈</span><span>Báo cáo &amp; Audit</span></button>
+    <button class="tab-btn" data-tab="staff" data-action="switchTab" data-args='["staff"]' id="staffTabBtn"><span class="tab-emoji">👤</span><span>Quản lý Tài khoản</span></button>
   </div>
 
   <!-- ============ TAB: MONITOR ============ -->
@@ -94,15 +94,15 @@
       <div class="card">
         <div class="counter-card-head">
           <h3>Quản lý Quầy linh hoạt</h3>
-          <button class="btn btn-primary action-chip" onclick="toggleNewCounterBox()">+ Thêm quầy mới</button>
+          <button class="btn btn-primary action-chip" data-action="toggleNewCounterBox">+ Thêm quầy mới</button>
         </div>
         <div id="newCounterBox" class="new-counter-box hidden">
           <div class="field"><label>Mã quầy</label><input id="newCounterCode" placeholder="VD: QUAY-06" /></div>
           <div class="field"><label>Tên quầy</label><input id="newCounterName" placeholder="VD: Quầy 06" /></div>
           <div class="field"><label>Lĩnh vực phụ trách</label><select id="newCounterField"></select></div>
           <div class="flex gap-8">
-            <button class="btn btn-primary" style="flex:1" onclick="submitCreateCounter()">Lưu quầy mới</button>
-            <button class="btn btn-outline" style="flex:1" onclick="toggleNewCounterBox(false)">Hủy</button>
+            <button class="btn btn-primary" style="flex:1" data-action="submitCreateCounter">Lưu quầy mới</button>
+            <button class="btn btn-outline" style="flex:1" data-action="toggleNewCounterBox" data-args='[false]'>Hủy</button>
           </div>
         </div>
         <div id="dispatchCounterList"></div>
@@ -112,7 +112,7 @@
         <div class="field"><label>Từ quầy</label><select id="rebalFrom"></select></div>
         <div class="field"><label>Sang quầy</label><select id="rebalTo"></select></div>
         <div class="field"><label>Tỷ lệ % số vé cuối hàng đợi cần chuyển</label><input type="number" id="rebalPercent" value="50" min="1" max="100" /></div>
-        <button class="btn btn-primary btn-block" onclick="submitRebalance()">San tải ngay</button>
+        <button class="btn btn-primary btn-block" data-action="submitRebalance">San tải ngay</button>
       </div>
     </div>
     <div class="grid grid-2 mt-16">
@@ -121,15 +121,15 @@
         <div class="field"><label>Thủ tục</label><select id="vipService"></select></div>
         <div class="field"><label>Quầy (để trống = tự động chọn)</label><select id="vipCounter"><option value="">Tự động (Least Queue Depth)</option></select></div>
         <div class="field"><label>Lý do ưu tiên (bắt buộc)</label><select id="vipReason"></select></div>
-        <button class="btn btn-warning btn-block" onclick="submitPriorityInject()">Cấp vé Ưu tiên</button>
+        <button class="btn btn-warning btn-block" data-action="submitPriorityInject">Cấp vé Ưu tiên</button>
       </div>
       <div class="card">
         <h3>Bỏ qua Lượt Khẩn cấp / Khôi phục Vé hủy nhầm</h3>
         <div class="field"><label>Chọn vé (Số thứ tự — Quầy)</label><select id="skipTicketSelect"><option value="">-- Chọn vé --</option></select></div>
         <div class="field"><label>Lý do (bắt buộc, sẽ ghi Audit Log)</label><input id="skipReason" /></div>
         <div class="flex gap-12">
-          <button class="btn btn-danger" style="flex:1" onclick="submitEmergencySkip()">🚫 Emergency Skip</button>
-          <button class="btn btn-success" style="flex:1" onclick="submitRestore()">↩️ Khôi phục Vé</button>
+          <button class="btn btn-danger" style="flex:1" data-action="submitEmergencySkip">🚫 Emergency Skip</button>
+          <button class="btn btn-success" style="flex:1" data-action="submitRestore">↩️ Khôi phục Vé</button>
         </div>
       </div>
     </div>
@@ -174,7 +174,7 @@
     <div class="card">
       <div class="counter-card-head">
         <h3>Tài khoản Cán bộ (Officer / Supervisor / Manager)</h3>
-        <button class="btn btn-primary action-chip" onclick="toggleNewStaffBox()">+ Thêm tài khoản</button>
+        <button class="btn btn-primary action-chip" data-action="toggleNewStaffBox">+ Thêm tài khoản</button>
       </div>
       <div id="newStaffBox" class="new-counter-box hidden">
         <div class="field"><label>Họ tên</label><input id="newStaffFullName" placeholder="VD: Nguyễn Văn A" /></div>
@@ -189,8 +189,8 @@
           </select>
         </div>
         <div class="flex gap-8">
-          <button class="btn btn-primary" style="flex:1" onclick="submitCreateStaff()">Lưu tài khoản</button>
-          <button class="btn btn-outline" style="flex:1" onclick="toggleNewStaffBox(false)">Hủy</button>
+          <button class="btn btn-primary" style="flex:1" data-action="submitCreateStaff">Lưu tài khoản</button>
+          <button class="btn btn-outline" style="flex:1" data-action="toggleNewStaffBox" data-args='[false]'>Hủy</button>
         </div>
       </div>
       <div id="staffList"></div>
@@ -202,6 +202,7 @@
 <script src="js/toast.js"></script>
 <script src="js/wsClient.js"></script>
 <script src="js/confirmDialog.js"></script>
+<script src="js/actionDelegate.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/chatbot.js?v=3"></script>
 </body>

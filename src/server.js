@@ -34,12 +34,18 @@ const ALLOWED_ORIGINS = [
 
 const app = express();
 app.use(helmet({
-  // Tat Content-Security-Policy mac dinh cua helmet: nhieu trang trong public/ (index.html,
-  // kiosk.html...) dung <script> inline ngay trong HTML, neu bat CSP mac dinh (chi cho phep
-  // script tu 'self') se chan luon cac script inline nay va lam hong toan bo trang. Cac
-  // header bao mat khac (X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security...)
-  // van duoc bat binh thuong.
-  contentSecurityPolicy: false
+  // Bat CSP voi script-src chi cho 'self' + CDN duy nhat dang dung (cdnjs, de tai thu vien
+  // qrcodejs trong chatbot.js). Truoc day CSP bi tat hoan toan vi cac trang public/ dung
+  // <script> inline va onclick="..." rai rac (CSP coi ca 2 la "inline script" va chan tuyet
+  // doi) - toan bo da duoc chuyen sang file .js rieng + data-action/actionDelegate.js (event
+  // delegation) nen gio bat lai duoc ma khong hong trang nao. script-src-attr mac dinh cua
+  // helmet la 'none' (chan hoan toan onclick=...), dung y muon - khong can noi long.
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'script-src': ["'self'", 'https://cdnjs.cloudflare.com']
+    }
+  }
 }));
 app.use(cors({
   origin(origin, callback) {

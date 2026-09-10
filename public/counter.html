@@ -32,7 +32,7 @@
     <span id="todayStats" class="badge badge-blue"></span>
     <span id="counterSelectWrap"></span>
     <span id="staffName" class="text-muted"></span>
-    <button class="btn btn-outline" onclick="logout()">Đăng xuất</button>
+    <button class="btn btn-outline" data-action="logout">Đăng xuất</button>
   </div>
 </div>
 
@@ -65,8 +65,8 @@
     <p class="text-muted">Tích chọn các giấy tờ công dân còn thiếu:</p>
     <div id="supplementChecklist"></div>
     <div class="flex gap-12 mt-16">
-      <button class="btn btn-outline" onclick="closeModal('supplementModal')">Hủy</button>
-      <button class="btn btn-warning" style="flex:1" onclick="submitSupplement()">Xác nhận Yêu cầu Bổ sung</button>
+      <button class="btn btn-outline" data-action="closeModal" data-args='["supplementModal"]'>Hủy</button>
+      <button class="btn btn-warning" style="flex:1" data-action="submitSupplement">Xác nhận Yêu cầu Bổ sung</button>
     </div>
   </div>
 </div>
@@ -74,6 +74,7 @@
 <script src="js/apiClient.js"></script>
 <script src="js/toast.js"></script>
 <script src="js/wsClient.js"></script>
+<script src="js/actionDelegate.js"></script>
 <script src="js/counter.js"></script>
 <script src="js/chatbot.js?v=3"></script>
 </body>
