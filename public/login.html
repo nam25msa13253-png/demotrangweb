@@ -4,11 +4,21 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Dang nhap - He thong Mot cua</title>
-<link rel="stylesheet" href="css/common.css?v=2" />
-<link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="css/common.css?v=3" />
+<link rel="icon" href="assets/logoKiosk-icon-transparent.png" type="image/png" />
 <style>
-  .login-center { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
-  .login-box { width: 380px; }
+  .login-center {
+    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px;
+    background: radial-gradient(circle at 12% 8%, #dbeafe, transparent 50%),
+                radial-gradient(circle at 92% 95%, #ccfbf1, transparent 45%),
+                var(--color-bg);
+  }
+  .login-box { width: 380px; position: relative; overflow: hidden; }
+  .login-box::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: var(--gradient-brand);
+  }
+  .login-logo { display: block; height: 52px; width: auto; margin: 4px auto 18px; }
   .login-box h1 { text-align: center; font-size: 1.4rem; margin-bottom: 4px; }
   .login-box p.sub { text-align: center; color: var(--color-text-muted); margin-top: 0; margin-bottom: 24px; }
 </style>
@@ -16,6 +26,7 @@
 <body>
   <main class="login-center">
     <div class="card login-box">
+      <img src="assets/logoKiosk-trimmed-transparent.png" alt="KIOSK - Digital Numbers &amp; Transformation" class="login-logo" />
       <h1>Đăng nhập Hệ thống</h1>
       <p class="sub">Giao diện Cán bộ Quầy / Admin Control Tower</p>
       <form id="loginForm">

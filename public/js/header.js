@@ -42,8 +42,7 @@
   const headerHtml = `
     <header class="site-header">
       <a href="index.html" class="site-brand">
-        <img src="assets/logo.svg" alt="Logo KIOSK" class="site-logo" />
-        <span class="site-brand-text">KIOSK</span>
+        <img src="assets/logoKiosk-trimmed-transparent.png" alt="KIOSK - Digital Numbers &amp; Transformation" class="site-logo" />
       </a>
       <nav class="site-nav">${fontToggleHtml}${clockHtml}${navHtml}</nav>
     </header>

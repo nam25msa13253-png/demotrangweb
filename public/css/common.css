@@ -12,6 +12,13 @@
   --heat-green: #22c55e;
   --heat-yellow: #eab308;
   --heat-red: #ef4444;
+  /* Mau thuong hieu lay tu logoKiosk (icon K + mui ten xanh duong -> xanh ngoc), dung lam
+     diem nhan gradient o cac be mat "thuong hieu" (hero, chatbot, nut CTA...) - khong doi
+     --color-primary hien co de tranh pha vo cac quy tac tuong phan da tinh chinh khap noi. */
+  --color-teal: #0d9488;
+  --color-teal-bright: #14c9c3;
+  --color-brand-deep: #0b4fa0;
+  --gradient-brand: linear-gradient(135deg, var(--color-brand-deep), var(--color-primary) 55%, var(--color-teal-bright));
   --radius-md: 12px;
   --radius-lg: 20px;
   --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.06);
@@ -37,6 +44,8 @@ body {
   padding: 0 28px;
   background: #ffffff;
   border-bottom: 1px solid var(--color-border);
+  border-top: 3px solid transparent;
+  border-image: var(--gradient-brand) 1;
   position: sticky;
   top: 0;
   z-index: 30;
@@ -48,9 +57,9 @@ body {
   text-decoration: none;
   color: var(--color-text);
 }
-.site-logo { width: 32px; height: 32px; display: block; }
-.site-brand-text { font-size: 1rem; letter-spacing: 0.01em; color: var(--color-text); }
-.site-brand-text strong { font-weight: 800; color: var(--color-primary-dark); }
+/* logoKiosk da co san chu "KIOSK" trong chinh anh (khong con the <span> chu rieng nhu logo.svg
+   cu) - chi can gioi han chieu cao, de chieu rong tu co dan theo ty le anh. */
+.site-logo { height: 38px; width: auto; display: block; }
 .site-nav { display: flex; align-items: center; gap: 4px; }
 .site-nav-link {
   color: var(--color-text-muted);
@@ -175,8 +184,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visib
 }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { background: var(--color-primary); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--color-primary-dark); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-brand-deep));
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
 .btn-success { background: var(--color-success); color: #fff; }
 .btn-warning { background: var(--color-warning); color: #fff; }
 .btn-danger { background: var(--color-danger); color: #fff; }
@@ -248,18 +264,29 @@ th { color: var(--color-text-muted); font-weight: 600; text-transform: uppercase
 /* ============== Trang chu (Hero tim kiem + Danh muc pho bien) ============== */
 .hero-banner {
   background: radial-gradient(circle at 15% 15%, #dbeafe, transparent 55%),
+              radial-gradient(circle at 90% 0%, #ccfbf1, transparent 50%),
               linear-gradient(135deg, #eef2ff, #f0f9ff 60%, #eff6ff);
   border: 1px solid #e0e7ff;
   border-radius: var(--radius-lg);
   padding: 64px 40px;
   text-align: center;
   margin-bottom: 40px;
+  position: relative;
+  overflow: hidden;
+}
+.hero-banner::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: var(--gradient-brand);
 }
 .hero-banner h1 { font-size: 2.15rem; margin: 0 0 14px; color: var(--color-text); line-height: 1.25; }
 .hero-banner p { font-size: 1.05rem; color: var(--color-text-muted); max-width: 620px; margin: 0 auto; }
 .hero-stats { display: flex; justify-content: center; gap: 40px; margin-top: 26px; flex-wrap: wrap; }
 .hero-stat { text-align: center; }
-.hero-stat .val { font-size: 1.7rem; font-weight: 800; color: var(--color-primary-dark); }
+.hero-stat .val {
+  font-size: 1.8rem; font-weight: 800;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
 .hero-stat .lbl { font-size: 0.8rem; color: var(--color-text-muted); }
 
 .hero-search-row {
@@ -314,7 +341,7 @@ th { color: var(--color-text-muted); font-weight: 600; text-transform: uppercase
 .chatbot-widget { position: fixed; right: 22px; bottom: 22px; z-index: 500; }
 .chatbot-fab {
   width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: var(--gradient-brand);
   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45), 0 0 0 0 rgba(37, 99, 235, 0.45);
   font-size: 1.5rem; color: #fff;
   display: flex; align-items: center; justify-content: center;
@@ -345,7 +372,7 @@ th { color: var(--color-text-muted); font-weight: 600; text-transform: uppercase
 }
 .chatbot-panel-header {
   display: flex; align-items: center; gap: 10px; justify-content: space-between;
-  padding: 14px 16px; background: linear-gradient(90deg, #1d4ed8, #2563eb); color: #fff;
+  padding: 14px 16px; background: var(--gradient-brand); color: #fff;
   flex-shrink: 0;
 }
 .chatbot-panel-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -378,7 +405,7 @@ th { color: var(--color-text-muted); font-weight: 600; text-transform: uppercase
 }
 .chatbot-avatar {
   width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff;
+  background: var(--gradient-brand); color: #fff;
   display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
 }
 .chatbot-msg {
@@ -439,6 +466,6 @@ th { color: var(--color-text-muted); font-weight: 600; text-transform: uppercase
 @media (max-width: 480px) {
   .chatbot-panel { width: calc(100vw - 24px); right: -10px; height: 76vh; }
   .site-nav-link { padding: 8px 10px; font-size: 0.8rem; }
-  .site-brand-text { display: none; }
+  .site-logo { height: 28px; }
   .site-clock { display: none; }
 }

@@ -58,7 +58,11 @@ smart-queue-system/
     │                                    tab: js/admin-{monitor,dispatch,config,reports,staff}.js
     │                                    + js/admin.js (loi/dieu phoi chung, nap sau cung)
     ├── login.html + js/login.js      # Đăng nhập Cán bộ/Admin (tách biệt hoàn toàn, xem mục 3)
-    ├── assets/logo.svg                # Logo hệ thống (dùng qua thẻ <img>)
+    ├── assets/logoKiosk.jpeg           # Logo gốc do người dùng cung cấp (giữ nguyên, KHÔNG dùng
+    │                                    trực tiếp trên site - kích thước lớn + nền không trong suốt)
+    ├── assets/logoKiosk-trimmed-transparent.png  # Logo wordmark đã cắt viền trắng + nền trong
+    │                                    suốt, dùng cho header/login (tạo bằng Pillow, xem mục 3)
+    ├── assets/logoKiosk-icon-transparent.png     # Chỉ phần icon "K" (vuông), dùng làm favicon
     ├── js/header.js                   # Header dùng chung (logo + nav) - tự gắn vào mọi trang
     ├── js/chatbot.js                  # Widget Trợ lý AI - tự gắn vào mọi trang (xem mục 3)
     ├── js/actionDelegate.js           # Event delegation (data-action=...) thay cho onclick=...
@@ -171,10 +175,15 @@ nào** (đã bỏ khỏi `login.html`). Bắt buộc đổi mật khẩu thật 
 - **Kiosk (`kiosk-checklist.html`)**: chỉ còn 2 bước — đối chiếu checklist giấy tờ (tick chọn) và
   nhận số thứ tự — hiển thị theo dạng stepper 3 nấc (bước 1 "Tìm thủ tục" tính từ Trang chủ).
 - **Hướng dẫn (`huong-dan.html`)**: 5 bước sử dụng hệ thống + câu hỏi thường gặp.
-- **Header dùng chung + logo**: `public/js/header.js` tự gắn thanh header (logo `assets/logo.svg`
-  qua thẻ `<img>` + menu điều hướng) vào đầu mọi trang — chỉ cần nhúng 1 dòng
-  `<script src="js/header.js"></script>`, không phải chép lại markup ở từng file. Các cờ cấu hình
-  cho từng trang (VD hiện đồng hồ, tự mở chatbot) đặt qua thuộc tính `data-*` trên `<body>` (VD
+- **Header dùng chung + logo**: `public/js/header.js` tự gắn thanh header (logo
+  `assets/logoKiosk-trimmed-transparent.png` qua thẻ `<img>` + menu điều hướng) vào đầu mọi
+  trang — chỉ cần nhúng 1 dòng `<script src="js/header.js"></script>`, không phải chép lại
+  markup ở từng file. Logo gốc `assets/logoKiosk.jpeg` (do người dùng cung cấp) đã được cắt bỏ
+  viền trắng thừa + tách nền trong suốt bằng script Python/Pillow (không sửa qua công cụ chỉnh
+  ảnh đồ hoạ) — dùng được trên cả nền sáng (header/login) lẫn nền tối (`display.html`). Màu
+  thương hiệu (`--color-teal`, `--color-teal-bright`, `--color-brand-deep`, `--gradient-brand`
+  trong `common.css`) lấy mẫu trực tiếp từ logo để đồng bộ giao diện. Các cờ cấu hình cho từng
+  trang (VD hiện đồng hồ, tự mở chatbot) đặt qua thuộc tính `data-*` trên `<body>` (VD
   `<body data-show-header-clock="true">`) — **không** dùng `<script>` inline gán biến `window.*`
   như bản cũ, vì Content-Security-Policy (mục 6) chặn tuyệt đối script inline.
 - **Trợ lý AI (chatbot hỗ trợ Kiosk)**: nút 💬 nổi ở góc phải mọi trang (`public/js/chatbot.js`),
