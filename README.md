@@ -30,8 +30,12 @@ smart-queue-system/
 │   ├── repositories/           # Lớp truy vấn DB thuần (ticket/counter/service/audit/form)
 │   ├── migrations/runMigrations.js  # Migration cộng thêm, tự chạy mỗi lần khởi động (idempotent)
 │   ├── services/
-│   │   ├── queueEngine.js      # LÕI: State Machine, Least Queue Depth, No-Show 3-Strike,
-│   │   │                       #  Two-way Branching, VIP Injection, Force Re-balance...
+│   │   ├── queueEngine/         # LÕI: State Machine, Least Queue Depth, No-Show 3-Strike,
+│   │   │                        #  Two-way Branching, VIP Injection, Force Re-balance...
+│   │   │   ├── index.js               # Diem vao cong khai, gop lai dung 1 API nhu truoc
+│   │   │   ├── ticketLifecycle.js     # Vong doi 1 ve: cap STT, goi so, No-Show, Hoan tat/Bo sung, Re-entry
+│   │   │   ├── priorityAndRebalance.js # VIP Injection + Force Re-balance
+│   │   │   └── adminActions.js        # Emergency Skip + Khoi phuc ve huy nham
 │   │   ├── counterService.js   # Mở/Đóng/Tạm dừng quầy, đổi lĩnh vực
 │   │   ├── analyticsService.js # Heatmap, Top Metrics, KPI, Peak Hour, Audit
 │   │   ├── chatbotService.js   # Chatbot RAG: rule-based trước, fallback Gemini + grounding tu DB
@@ -50,7 +54,9 @@ smart-queue-system/
     │                                    thẳng vào ô tìm kiếm của Trang chủ, không còn trang riêng)
     ├── counter.html + js/counter.js  # Giao diện Cán bộ Quầy (Băng chuyền)
     ├── display.html + js/display.js  # Bảng LED + Loa PA/TTS (Web Speech API)
-    ├── admin.html + js/admin.js      # Admin Control Tower (5 tab, xem muc 4)
+    ├── admin.html                     # Admin Control Tower (5 tab, xem muc 4) - JS tach theo
+    │                                    tab: js/admin-{monitor,dispatch,config,reports,staff}.js
+    │                                    + js/admin.js (loi/dieu phoi chung, nap sau cung)
     ├── login.html + js/login.js      # Đăng nhập Cán bộ/Admin (tách biệt hoàn toàn, xem mục 3)
     ├── assets/logo.svg                # Logo hệ thống (dùng qua thẻ <img>)
     ├── js/header.js                   # Header dùng chung (logo + nav) - tự gắn vào mọi trang
@@ -74,6 +80,14 @@ của máy đó qua `netsh` — xem `wifi-local-service/README.md`.
 Repo đã kèm sẵn [`render.yaml`](render.yaml) khai báo cả web service Node lẫn 1 Postgres
 managed, tự wire `DATABASE_URL` giữa 2 bên — không cần tạo/điền tay bất kỳ connection string
 nào.
+
+⚠️ **`render.yaml` đang dùng `plan: free` cho cả web service lẫn Postgres** — phù hợp cho
+demo/đồ án nhưng có các giới hạn cần biết trước khi trình bày như production thật: (1) web
+service free tier tự "ngủ" sau ~15 phút không có traffic, lần truy cập đầu tiên sau đó mất
+khoảng 30-60s để "thức dậy"; (2) Postgres free tier bị xoá tự động sau 90 ngày nếu không nâng
+cấp lên plan trả phí, và giới hạn số connection đồng thời thấp hơn plan trả phí. Muốn chạy ổn
+định 24/7 (không ngủ, không giới hạn thời hạn DB) thì đổi `plan: free` → `plan: starter` (hoặc
+cao hơn) cho cả 2 resource trong `render.yaml` trước khi Apply Blueprint.
 
 ### Bước 1 — Tạo Blueprint
 
@@ -170,7 +184,11 @@ nào** (đã bỏ khỏi `login.html`). Bắt buộc đổi mật khẩu thật 
   còn xử lý trực tiếp 3 tác vụ tương tác thật (không chỉ hướng dẫn tĩnh): hiển thị mã QR Wi-Fi
   thật (đọc qua `wifi-local-service/` chạy trên máy Kiosk, xem README riêng trong thư mục đó),
   kiểm tra điều kiện nộp hồ sơ trực tuyến (DVC) qua mức định danh VNeID, và xử lý quét mã QR
-  Re-entry khi công dân quay lại bổ sung hồ sơ. Widget gọi tới `POST /api/chatbot/ask` ở backend.
+  Re-entry khi công dân quay lại bổ sung hồ sơ. 2 tác vụ DVC/Re-entry cần hỏi lại 1 thông tin
+  trước khi gọi API thật (`pendingAction` trong `chatbot.js`) — người dùng có thể gõ "huỷ" (hoặc
+  đổi sang hỏi chủ đề khác hẳn) giữa chừng để thoát luồng đang dở, không bị "giam" trong luồng cũ
+  mãi (đã từng là 1 bug: mọi tin nhắn tiếp theo bị luồng cũ nuốt hết, không có lối thoát). Widget
+  gọi tới `POST /api/chatbot/ask` ở backend.
   Backend dùng **Google Gemini API**
   (`@google/genai`, model `gemini-3.6-flash` — `gemini-2.5-flash` đã bị Google ngừng hỗ trợ cho
   tài khoản mới) — API key đọc từ `GEMINI_API_KEY` trong `.env`,
@@ -185,7 +203,7 @@ nào** (đã bỏ khỏi `login.html`). Bắt buộc đổi mật khẩu thật 
 
 ---
 
-## 4. Các thuật toán nghiệp vụ lõi (đã hiện thực đầy đủ trong `queueEngine.js`)
+## 4. Các thuật toán nghiệp vụ lõi (đã hiện thực đầy đủ trong `src/services/queueEngine/`)
 
 - **Cấp STT theo Least Queue Depth**: tiền tố theo lĩnh vực (A/B/C-1xx), gán vào quầy `OPEN`
   cùng lĩnh vực đang có ít vé nhất.
@@ -252,6 +270,12 @@ ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau
 
 ## 6. Bảo mật & Ghi chú triển khai khác
 
+- **`npm audit`**: còn 2 cảnh báo mức trung bình (`qs` array-limit bypass/DoS) do bị ghim cứng
+  ngay trong chính `express@4.x` — chạy `npm audit fix` (an toàn, không breaking change) trước
+  khi kiểm tra lại, nhưng phần còn lại hiện KHÔNG có bản vá tương thích Express 4.x (kể cả
+  `npm audit fix --force` cũng không đổi được gì tại thời điểm viết README này) — chỉ hết hẳn khi
+  nâng lên Express 5.x (breaking change, cần test kỹ trước khi làm) hoặc khi `express`/`qs` phát
+  hành bản vá mới. Chạy lại `npm audit` định kỳ để biết khi nào có bản vá.
 - **Content-Security-Policy**: bật qua `helmet` trong `src/server.js`, `script-src` chỉ cho phép
   `'self'` + `https://cdnjs.cloudflare.com` (CDN duy nhất đang dùng, để tải thư viện `qrcodejs`
   trong `chatbot.js`). **Không được thêm `<script>` inline hay `onclick="..."`/`onchange="..."`
@@ -283,7 +307,7 @@ ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau
   cố quầy đã xoá vẫn rò rỉ ra Heatmap/Bảng LED do quên filter (đã từng xảy ra và được sửa ở 4 chỗ
   khác nhau). Các thao tác GHI (INSERT/UPDATE/SELECT...FOR UPDATE trong transaction nghiệp vụ)
   vẫn dùng bảng gốc `counters` như cũ trong `counterRepository.js`.
-- **Gửi SMS/Zalo thật**: các điểm gọi trong `queueEngine.js` đang là log console (đánh dấu
+- **Gửi SMS/Zalo thật**: các điểm gọi trong `src/services/queueEngine/` đang là log console (đánh dấu
   `TODO-tich-hop`) — cắm Gateway SMS/Zalo Notification OA thật vào đúng các điểm này.
 - **Web Speech API**: giọng đọc phụ thuộc trình duyệt/OS có cài voice `vi-VN` hay không. Nếu
   cần chất lượng đọc ổn định hơn, thay bằng dịch vụ TTS server-side (Google/Viettel AI...) và
@@ -308,7 +332,9 @@ CI (`.github/workflows/ci.yml`) tự chạy `npm test` mỗi lần push/tạo Pu
 | `test/ruleBasedAssistant.test.js` | Chatbot rule-based (trước khi fallback sang Gemini) |
 | `test/analyticsService.test.js` | Heatmap, Top Metrics, KPI, Peak Hour |
 | `test/counterService.test.js` | Mở/Đóng/Tạm dừng quầy, đổi lĩnh vực, xoá quầy (san tải vé) |
+| `test/routes.test.js` | Tích hợp qua HTTP thật (`supertest`): middleware `authenticate`/`requirePermission` (401/403), `validate.js` (400), login/logout, 404 JSON |
 | `test/utils.test.js` | `uuid.js`, `json.js`, `validate.js` |
 
-Chưa có test tích hợp end-to-end qua tầng HTTP (routes) — các route hiện được kiểm tra thủ công
-qua Admin/Kiosk/Counter UI trước khi deploy.
+`supertest` (devDependency) dựng 1 Express app ngay trong test, gắn route module thật của dự
+án — khác các file test khác (chỉ gọi thẳng hàm JS của service), `routes.test.js` xác nhận
+middleware/route wiring hoạt động đúng qua request/response HTTP thật.
