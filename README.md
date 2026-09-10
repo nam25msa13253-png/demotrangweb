@@ -28,29 +28,44 @@ smart-queue-system/
 │   │   ├── uuid.js             # Sinh UUID phía ứng dụng (crypto.randomUUID(), độc lập với DB)
 │   │   └── json.js             # Parse cột JSON (pg đã tự parse JSONB, hàm này chỉ phòng hờ)
 │   ├── repositories/           # Lớp truy vấn DB thuần (ticket/counter/service/audit/form)
+│   ├── migrations/runMigrations.js  # Migration cộng thêm, tự chạy mỗi lần khởi động (idempotent)
 │   ├── services/
 │   │   ├── queueEngine.js      # LÕI: State Machine, Least Queue Depth, No-Show 3-Strike,
 │   │   │                       #  Two-way Branching, VIP Injection, Force Re-balance...
 │   │   ├── counterService.js   # Mở/Đóng/Tạm dừng quầy, đổi lĩnh vực
 │   │   ├── analyticsService.js # Heatmap, Top Metrics, KPI, Peak Hour, Audit
+│   │   ├── chatbotService.js   # Chatbot RAG: rule-based trước, fallback Gemini + grounding tu DB
+│   │   ├── kioskFeatureGuide.js # Nội dung hướng dẫn Wi-Fi/DVC/Bổ sung hồ sơ cho chatbot
 │   │   ├── purgeScheduler.js   # Max Ticket Lifetime sweep + End-of-Day Batch Purge (17:00)
-│   │   └── authService.js      # Login (bcrypt) + token phiên làm việc
+│   │   └── authService.js      # Login (bcrypt) + token phiên lưu trong Postgres (staff_sessions)
 │   ├── routes/                 # kioskRoutes, counterRoutes, adminRoutes, displayRoutes, authRoutes, chatbotRoutes
 │   ├── websocket/wsHub.js      # Broadcast realtime cho 4 module
-│   └── server.js               # Entry point
+│   └── server.js               # Entry point (Helmet + CSP, CORS, rate-limit, routes)
+├── test/                       # `npm test` (node --test) - xem muc 7
 └── public/                     # Frontend tĩnh (phục vụ qua Express static)
-    ├── index.html                     # Trang chủ (tra cứu + danh mục thủ tục nổi bật)
+    ├── index.html + js/index.js       # Trang chủ (tra cứu + danh mục thủ tục nổi bật)
     ├── huong-dan.html                 # Hướng dẫn sử dụng (5 bước + FAQ)
-    ├── kiosk.html + js/kiosk.js       # Kiosk Tiếp nhận công dân (nhận ?serviceId= từ Trang chủ)
+    ├── kiosk-checklist.html + js/kiosk-checklist.js  # Đối chiếu giấy tờ + Nhận STT
+    │                                    (nhận ?serviceId= từ Trang chủ; tìm thủ tục đã gộp
+    │                                    thẳng vào ô tìm kiếm của Trang chủ, không còn trang riêng)
     ├── counter.html + js/counter.js  # Giao diện Cán bộ Quầy (Băng chuyền)
     ├── display.html + js/display.js  # Bảng LED + Loa PA/TTS (Web Speech API)
-    ├── admin.html + js/admin.js      # Admin Control Tower (4 phân hệ)
-    ├── login.html                    # Đăng nhập Cán bộ/Admin
+    ├── admin.html + js/admin.js      # Admin Control Tower (5 tab, xem muc 4)
+    ├── login.html + js/login.js      # Đăng nhập Cán bộ/Admin (tách biệt hoàn toàn, xem mục 3)
     ├── assets/logo.svg                # Logo hệ thống (dùng qua thẻ <img>)
     ├── js/header.js                   # Header dùng chung (logo + nav) - tự gắn vào mọi trang
-    ├── js/chatbot.js                  # Widget Trợ lý AI - tự gắn vào mọi trang
-    └── css/common.css                # Design system dùng chung
+    ├── js/chatbot.js                  # Widget Trợ lý AI - tự gắn vào mọi trang (xem mục 3)
+    ├── js/actionDelegate.js           # Event delegation (data-action=...) thay cho onclick=...
+    │                                    inline - bắt buộc phải dùng file này khi thêm nút bấm
+    │                                    render động, vì Content-Security-Policy (mục 6) chặn
+    │                                    tuyệt đối onclick="..." viết trực tiếp trong HTML/JS.
+    ├── js/apiClient.js, toast.js, wsClient.js, confirmDialog.js, searchSuggest.js  # Tiện ích dùng chung
+    └── css/common.css, css/kiosk.css # Design system dùng chung
 ```
+
+Thư mục `wifi-local-service/` (ở gốc repo, tách biệt với dự án chính) là 1 dịch vụ Node độc
+lập, **bắt buộc chạy trên chính máy Kiosk Windows** (không phải trên Render) để đọc Wi-Fi thật
+của máy đó qua `netsh` — xem `wifi-local-service/README.md`.
 
 ---
 
@@ -106,7 +121,7 @@ Server chạy tại `http://localhost:3000` (WebSocket dùng chung port qua `ws`
 | Module | URL |
 |---|---|
 | Trang chủ | `http://localhost:3000/` (hoặc `/index.html`) |
-| Kiosk (công dân) | `http://localhost:3000/kiosk.html` |
+| Kiosk (công dân) | Bấm 1 thủ tục từ Trang chủ → `kiosk-checklist.html?serviceId=...` (không có trang "tìm thủ tục" riêng, đã gộp vào ô tìm kiếm của Trang chủ) |
 | Cán bộ Quầy | `http://localhost:3000/login.html` → `counter.html` |
 | Bảng LED / Loa PA | `http://localhost:3000/display.html` |
 | Admin Control Tower | `http://localhost:3000/login.html` → `admin.html` |
@@ -120,7 +135,9 @@ Server chạy tại `http://localhost:3000` (WebSocket dùng chung port qua `ws`
 | `supervisor01` | SUPERVISOR (Cán bộ Điều phối) |
 | `officer01` | OFFICER (đã gán sẵn phụ trách QUAY-01, quầy này được mở sẵn) |
 
-⚠️ Đổi mật khẩu thật (bcrypt hash mới) trước khi triển khai production — xem `db/schema.sql`.
+⚠️ Bảng trên chỉ để tham khảo khi setup local — **không hiển thị trên bất kỳ trang công khai
+nào** (đã bỏ khỏi `login.html`). Bắt buộc đổi mật khẩu thật (bcrypt hash mới, hoặc dùng tab
+"Quản lý Tài khoản" trên Admin Dashboard) trước khi triển khai production — xem `db/schema.sql`.
 
 ---
 
@@ -130,20 +147,33 @@ Server chạy tại `http://localhost:3000` (WebSocket dùng chung port qua `ws`
   LED dùng chung 1 header công khai (logo + "Trang chủ" | "Hướng dẫn") — header này **không chứa
   bất kỳ liên kết nào** tới `/login.html` hay khu vực Quầy/Admin, để người dân tra cứu không nhìn
   thấy hoặc vô tình lạc vào luồng nội bộ. `login.html` là trang **hoàn toàn tách riêng** (không
-  dùng header công khai, không được liên kết từ bất kỳ trang công khai nào) — chỉ cán bộ biết URL
-  trực tiếp mới truy cập.
+  dùng header công khai, không được liên kết từ bất kỳ trang công khai nào, không còn hiển thị
+  gợi ý tài khoản mẫu) — chỉ cán bộ biết URL trực tiếp mới truy cập.
 - **Trang chủ (`index.html`)**: thiết kế theo mô hình tra cứu-trước — ô tìm kiếm thủ tục ngay ở
-  hero, bên dưới là "Các thủ tục phổ biến" lấy trực tiếp từ database. Bấm vào 1 thủ tục sẽ mở
-  `kiosk.html?serviceId=...` và tự động nhảy thẳng vào bước đối chiếu checklist giấy tờ.
-- **Hướng dẫn (`huong-dan.html`)**: trang mới — 5 bước sử dụng hệ thống + câu hỏi thường gặp.
+  hero, bên dưới là "Các thủ tục phổ biến" lấy trực tiếp từ database (không còn trang "Tìm thủ
+  tục" riêng của Kiosk — đã gộp vào chính ô tìm kiếm này vì trùng lặp chức năng). Bấm vào 1 thủ
+  tục sẽ mở `kiosk-checklist.html?serviceId=...` và tự động nhảy thẳng vào bước đối chiếu
+  checklist giấy tờ.
+- **Kiosk (`kiosk-checklist.html`)**: chỉ còn 2 bước — đối chiếu checklist giấy tờ (tick chọn) và
+  nhận số thứ tự — hiển thị theo dạng stepper 3 nấc (bước 1 "Tìm thủ tục" tính từ Trang chủ).
+- **Hướng dẫn (`huong-dan.html`)**: 5 bước sử dụng hệ thống + câu hỏi thường gặp.
 - **Header dùng chung + logo**: `public/js/header.js` tự gắn thanh header (logo `assets/logo.svg`
   qua thẻ `<img>` + menu điều hướng) vào đầu mọi trang — chỉ cần nhúng 1 dòng
-  `<script src="js/header.js"></script>`, không phải chép lại markup ở từng file.
+  `<script src="js/header.js"></script>`, không phải chép lại markup ở từng file. Các cờ cấu hình
+  cho từng trang (VD hiện đồng hồ, tự mở chatbot) đặt qua thuộc tính `data-*` trên `<body>` (VD
+  `<body data-show-header-clock="true">`) — **không** dùng `<script>` inline gán biến `window.*`
+  như bản cũ, vì Content-Security-Policy (mục 6) chặn tuyệt đối script inline.
 - **Trợ lý AI (chatbot hỗ trợ Kiosk)**: nút 💬 nổi ở góc phải mọi trang (`public/js/chatbot.js`),
-  có sẵn các gợi ý câu hỏi (chip) ngay khi mở, và **tự mở kèm gợi ý** trên Trang chủ sau 1.2s
-  (1 lần/phiên trình duyệt, đặt qua `window.CHATBOT_AUTO_OPEN = true`) để chủ động hỗ trợ.
-  Widget gọi tới `POST /api/chatbot/ask` ở backend. Backend dùng **Google Gemini API**
-  (`@google/genai`, model `gemini-2.5-flash`) — API key đọc từ `GEMINI_API_KEY` trong `.env`,
+  có sẵn các gợi ý câu hỏi (chip) hiện lại sau mỗi lượt trả lời (không mất hẳn sau câu hỏi đầu),
+  và **tự mở kèm gợi ý** trên Trang chủ sau 1.2s (1 lần/phiên trình duyệt, đặt qua
+  `data-chatbot-auto-open="true"` trên `<body>`) để chủ động hỗ trợ. Ngoài hỏi-đáp chung, widget
+  còn xử lý trực tiếp 3 tác vụ tương tác thật (không chỉ hướng dẫn tĩnh): hiển thị mã QR Wi-Fi
+  thật (đọc qua `wifi-local-service/` chạy trên máy Kiosk, xem README riêng trong thư mục đó),
+  kiểm tra điều kiện nộp hồ sơ trực tuyến (DVC) qua mức định danh VNeID, và xử lý quét mã QR
+  Re-entry khi công dân quay lại bổ sung hồ sơ. Widget gọi tới `POST /api/chatbot/ask` ở backend.
+  Backend dùng **Google Gemini API**
+  (`@google/genai`, model `gemini-3.6-flash` — `gemini-2.5-flash` đã bị Google ngừng hỗ trợ cho
+  tài khoản mới) — API key đọc từ `GEMINI_API_KEY` trong `.env`,
   **không bao giờ lộ ra frontend**. Để tránh AI "tự bịa" thủ tục, mỗi câu hỏi được ghép kèm dữ
   liệu thật lấy trực tiếp từ database (danh mục thủ tục, checklist giấy tờ, trạng thái quầy hiện
   tại) làm căn cứ bắt buộc — đúng tinh thần RAG mô tả trong tài liệu `Chat bot.pdf` gốc.
@@ -203,8 +233,9 @@ ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau
   `pg` tự parse `JSONB` thành object/array — `src/utils/json.js` vẫn giữ lại như một lớp phòng
   hờ (không gây lỗi nếu giá trị đã là object sẵn).
 - **Lỗi trùng khoá/khoá ngoại** nhận diện qua SQLSTATE của Postgres thay vì mã lỗi MySQL:
-  `23505` (unique_violation, xem `adminRoutes.js`) và `23503` (foreign_key_violation, xem
-  `counterService.js`) — khác hẳn `ER_DUP_ENTRY`/`ER_ROW_IS_REFERENCED_2` của MySQL.
+  `23505` (unique_violation) và `23503` (foreign_key_violation) — bắt trong `adminRoutes.js` ở
+  các route nhận `fieldId`/`code` từ body — khác hẳn `ER_DUP_ENTRY`/`ER_ROW_IS_REFERENCED_2` của
+  MySQL.
 - **`LIKE` → `ILIKE`** trong `serviceRepository.searchServices` để giữ tìm kiếm không phân biệt
   hoa/thường (MySQL mặc định không phân biệt nhờ collation `utf8mb4_unicode_ci`; Postgres `LIKE`
   thường thì có phân biệt).
@@ -219,13 +250,65 @@ ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau
 
 ---
 
-## 6. Ghi chú triển khai khác
+## 6. Bảo mật & Ghi chú triển khai khác
 
-- **RBAC**: xác thực bằng token phiên đơn giản trong bộ nhớ (`src/services/authService.js`) —
-  đủ cho demo/tham khảo. Khi lên production, thay bằng JWT ký/hết hạn chuẩn hoặc tích hợp SSO
-  của cơ quan, và thêm HTTPS bắt buộc.
+- **Content-Security-Policy**: bật qua `helmet` trong `src/server.js`, `script-src` chỉ cho phép
+  `'self'` + `https://cdnjs.cloudflare.com` (CDN duy nhất đang dùng, để tải thư viện `qrcodejs`
+  trong `chatbot.js`). **Không được thêm `<script>` inline hay `onclick="..."`/`onchange="..."`
+  vào bất kỳ trang nào** — CSP sẽ chặn tuyệt đối (kể cả khi không báo lỗi rõ ràng, nút bấm sẽ đơn
+  giản là không hoạt động). Khi cần gắn hành vi cho 1 nút render động, dùng
+  `public/js/actionDelegate.js` (helper `actionAttr(tenHam, ...thamSo)` sinh thuộc tính
+  `data-action`/`data-args`, xem cách dùng trong `admin.js`/`counter.js`) thay vì viết
+  `onclick="..."` trực tiếp.
+- **Phiên đăng nhập**: lưu trong bảng `staff_sessions` của chính Postgres (không phải Map trong
+  bộ nhớ — tránh mất phiên khi Render restart/redeploy/free-tier sleep), token là chuỗi ngẫu
+  nhiên 32-byte, hết hạn sau 8 giờ. Mỗi lần đăng nhập tạo 1 dòng token riêng nên **đã hỗ trợ sẵn
+  thu hồi độc lập theo từng thiết bị** (đăng xuất ở máy A không ảnh hưởng phiên đang mở ở máy B).
+  `verifyToken()` đối chiếu cả `staff.is_active` ngay trong câu SELECT (không chỉ tra riêng bảng
+  `staff_sessions`) và `staffService.setStaffActive`/`resetStaffPassword` gọi
+  `authService.revokeAllSessionsForStaff()` để xoá sạch token cũ — **khoá tài khoản hoặc đặt lại
+  mật khẩu có hiệu lực ngay lập tức**, không phải chờ tới khi token tự hết hạn (đã từng là 1 lỗ
+  hổng: tài khoản vừa bị khoá vẫn thao tác được tiếp tối đa 8 giờ bằng token cũ, xem
+  `test/authService.test.js`). Khi lên production thật, cân nhắc thay bằng JWT ký/hết hạn chuẩn
+  hoặc tích hợp SSO của cơ quan, và thêm HTTPS bắt buộc.
+- **Validate input**: `src/utils/validate.js` (`requireInt`/`requireString`, không dùng thư viện
+  ngoài như Joi/Zod vì phạm vi còn nhỏ) chặn sớm tham số rõ ràng sai định dạng (thiếu, không phải
+  số...) ở route trước khi chạm tới DB — tránh lộ nguyên văn lỗi Postgres thô (VD "invalid input
+  syntax for type integer") ra ngoài response. Áp dụng ở các route nhận id/số từ body:
+  `POST /api/kiosk/tickets`, `POST /api/admin/counters`, `POST /api/admin/counters/:id/field`,
+  `POST /api/admin/rebalance`, `POST /api/admin/priority-inject`.
+- **is_deleted (soft-delete quầy)**: mọi truy vấn liệt kê quầy **bắt buộc** phải đọc qua VIEW
+  `active_counters` (định nghĩa trong `src/migrations/runMigrations.js`, tự động lọc
+  `is_deleted = 0`) thay vì tự viết `WHERE is_deleted = 0` thủ công ở từng nơi — tránh lặp lại sự
+  cố quầy đã xoá vẫn rò rỉ ra Heatmap/Bảng LED do quên filter (đã từng xảy ra và được sửa ở 4 chỗ
+  khác nhau). Các thao tác GHI (INSERT/UPDATE/SELECT...FOR UPDATE trong transaction nghiệp vụ)
+  vẫn dùng bảng gốc `counters` như cũ trong `counterRepository.js`.
 - **Gửi SMS/Zalo thật**: các điểm gọi trong `queueEngine.js` đang là log console (đánh dấu
   `TODO-tich-hop`) — cắm Gateway SMS/Zalo Notification OA thật vào đúng các điểm này.
 - **Web Speech API**: giọng đọc phụ thuộc trình duyệt/OS có cài voice `vi-VN` hay không. Nếu
   cần chất lượng đọc ổn định hơn, thay bằng dịch vụ TTS server-side (Google/Viettel AI...) và
   phát audio file qua Display module thay vì `speechSynthesis`.
+
+---
+
+## 7. Kiểm thử
+
+```bash
+npm test    # node --test, chay toan bo test/*.test.js
+```
+
+CI (`.github/workflows/ci.yml`) tự chạy `npm test` mỗi lần push/tạo Pull Request vào `main`.
+
+| File | Bao phủ |
+|---|---|
+| `test/queueEngine.test.js` | 13 hàm nghiệp vụ lõi (Least Queue Depth, 3-Strike No-Show, Two-way Branching, VIP Injection, Force Re-balance, Emergency Skip, khôi phục vé...) — mock repository/configService bằng 1 "CSDL giả" trong bộ nhớ, không cần Postgres thật |
+| `test/authMiddleware.test.js` | RBAC (`requirePermission`, `PERMISSION_GROUPS`) |
+| `test/authService.test.js` | Xác thực token phiên, thu hồi phiên khi khoá tài khoản/đặt lại mật khẩu |
+| `test/configService.test.js` | Dynamic Policy Engine, Safe Limits Validation |
+| `test/ruleBasedAssistant.test.js` | Chatbot rule-based (trước khi fallback sang Gemini) |
+| `test/analyticsService.test.js` | Heatmap, Top Metrics, KPI, Peak Hour |
+| `test/counterService.test.js` | Mở/Đóng/Tạm dừng quầy, đổi lĩnh vực, xoá quầy (san tải vé) |
+| `test/utils.test.js` | `uuid.js`, `json.js`, `validate.js` |
+
+Chưa có test tích hợp end-to-end qua tầng HTTP (routes) — các route hiện được kiểm tra thủ công
+qua Admin/Kiosk/Counter UI trước khi deploy.
