@@ -19,6 +19,22 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000'
 ];
 
+// Private Network Access (PNA): trinh duyet (tu Chrome ~104+) coi trang HTTPS cong khai goi vao
+// dia chi mang noi bo/localhost la mot loai request "public -> private" va bat buoc phai co header
+// nay trong response (ca preflight OPTIONS lan response that) thi moi cho qua, neu khong request
+// se bi chan am tham du CORS o tren da dung. Thieu dong nay la nguyen nhan pho bien khien tinh
+// nang "goi API localhost tu 1 trang HTTPS" khong hoat dong ma khong ro ly do.
+//
+// QUAN TRONG: middleware nay PHAI dat TRUOC app.use(cors(...)) ben duoi. Goi 'cors' mac dinh tu
+// xu ly va KET THUC LUON response cho preflight OPTIONS (khong goi next()), nen neu middleware
+// nay dat SAU cors, no se khong bao gio duoc chay cho request OPTIONS preflight - Chrome se
+// thieu header nay o buoc preflight va am tham chan request that phia sau, dan den fetch() ben
+// trinh duyet bi loi "Failed to fetch" (khong hien QR/mat khau, khong ro nguyen nhan).
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  next();
+});
+
 app.use(cors({
   origin: (origin, callback) => {
     // origin rong (goi truc tiep bang curl/Postman, khong phai tu trinh duyet) van cho qua de
@@ -27,16 +43,6 @@ app.use(cors({
     callback(new Error('Nguon goc khong duoc phep goi Dich vu Wi-Fi cuc bo.'));
   }
 }));
-
-// Private Network Access (PNA): trinh duyet (tu Chrome ~104+) coi trang HTTPS cong khai goi vao
-// dia chi mang noi bo/localhost la mot loai request "public -> private" va bat buoc phai co header
-// nay trong response (ca preflight OPTIONS lan response that) thi moi cho qua, neu khong request
-// se bi chan am tham du CORS o tren da dung. Thieu dong nay la nguyen nhan pho bien khien tinh
-// nang "goi API localhost tu 1 trang HTTPS" khong hoat dong ma khong ro ly do.
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Private-Network', 'true');
-  next();
-});
 
 function runCommand(cmd) {
   return new Promise((resolve, reject) => {
@@ -129,6 +135,28 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 
 // Chi lang nghe tren 127.0.0.1 (khong phai 0.0.0.0) - dich vu chi phuc vu trinh duyet dang mo
 // TREN CHINH MAY NAY, khong can va khong nen mo ra cho cac may khac trong mang LAN goi toi.
-app.listen(PORT, '127.0.0.1', () => {
+const server = app.listen(PORT, '127.0.0.1', () => {
   console.log(`[wifi-local-service] Dang chay tai http://localhost:${PORT}/api/current-wifi`);
+});
+
+// Bat loi 'error' cua server rieng (thay vi de no roi thanh unhandled 'error' event lam crash
+// voi stack trace kho hieu) de in ra ly do de doc bang tieng Viet, dac biet la truong hop pho
+// bien nhat: dich vu da tu chay ngam san (qua Startup - xem install-autostart.ps1) nen cong da
+// bi chiem, khong phai loi thuc su.
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('');
+    console.error('============================================================');
+    console.error(`  Cong ${PORT} da duoc su dung boi mot tien trinh khac.`);
+    console.error('  Nguyen nhan thuong gap nhat: Dich vu Wi-Fi da tu dong chay');
+    console.error('  ngam san (sau khi cai dat install-autostart.bat) hoac ban');
+    console.error('  dang mo 2 cua so dich vu nay cung luc.');
+    console.error('');
+    console.error('  => KHONG can lam gi them, dich vu van dang hoat dong binh');
+    console.error(`     thuong. Mo http://localhost:${PORT}/health de kiem tra.`);
+    console.error('============================================================');
+  } else {
+    console.error('[wifi-local-service] Loi khi khoi dong server:', err.message);
+  }
+  process.exit(1);
 });

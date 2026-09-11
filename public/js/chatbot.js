@@ -257,6 +257,9 @@
       const res = await fetchWithTimeout(WIFI_SERVICE_URL, 2500);
       data = await res.json();
     } catch (err) {
+      // Chi log ra console (khong hien cho nguoi dan) de ky thuat vien con cach kiem tra khi
+      // dich vu Wi-Fi cuc bo khong phan hoi (chua chay, bi chan CORS/Private Network Access,...).
+      console.warn('[chatbot] Khong goi duoc Dich vu Wi-Fi cuc bo (localhost:5000):', err);
       return;
     }
 
