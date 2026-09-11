@@ -51,6 +51,15 @@ beforeEach(() => {
       const staff = staffFixtures.find((s) => s.username === params[0] && s.is_active === 1);
       return { rows: staff ? [staff] : [] };
     }
+    if (sql.includes('FROM staff WHERE id')) {
+      const staff = staffFixtures.find((s) => s.id === params[0]);
+      return { rows: staff ? [staff] : [] };
+    }
+    if (sql.includes('UPDATE staff SET password_hash')) {
+      const staff = staffFixtures.find((s) => s.id === params[1]);
+      if (staff) { staff.password_hash = params[0]; staff.must_change_password = 0; }
+      return { rows: [] };
+    }
     if (sql.includes('INSERT INTO staff_sessions')) {
       const [token, staffId, role, fullName, expiresAt] = params;
       sessionFixtures.push({ token, staff_id: staffId, role, full_name: fullName, expires_at: expiresAt });
@@ -64,6 +73,19 @@ beforeEach(() => {
     }
     if (sql.includes('DELETE FROM staff_sessions WHERE token')) {
       sessionFixtures = sessionFixtures.filter((s) => s.token !== params[0]);
+      return { rows: [] };
+    }
+    if (sql.includes('UPDATE staff SET failed_login_attempts = ?, locked_until = ?')) {
+      const staff = staffFixtures.find((s) => s.id === params[2]);
+      if (staff) { staff.failed_login_attempts = params[0]; staff.locked_until = params[1]; }
+      return { rows: [] };
+    }
+    if (sql.includes('UPDATE staff SET failed_login_attempts = 0, locked_until = NULL')) {
+      const staff = staffFixtures.find((s) => s.id === params[0]);
+      if (staff) { staff.failed_login_attempts = 0; staff.locked_until = null; }
+      return { rows: [] };
+    }
+    if (sql.includes('INSERT INTO audit_logs')) {
       return { rows: [] };
     }
     throw new Error(`Cau SQL khong duoc gia lap trong test: ${sql}`);
@@ -144,6 +166,42 @@ test('POST /api/admin/staff: tu choi 403 dung message khi dang nhap dung nhung k
     .send({ fullName: 'X', username: 'y', password: '123456', role: 'OFFICER' });
   assert.equal(res.status, 403);
   assert.match(res.body.error, /OFFICER/);
+});
+
+test('POST /api/auth/change-password: tu doi mat khau thanh cong khi dung mat khau hien tai', async () => {
+  const app = buildApp();
+  const loginRes = await request(app).post('/api/auth/login').send({ username: 'officer01', password: 'changeme' });
+  const token = loginRes.body.token;
+
+  const res = await request(app)
+    .post('/api/auth/change-password')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ currentPassword: 'changeme', newPassword: 'MatKhauMoi789' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.success, true);
+});
+
+test('POST /api/auth/change-password: tu choi 400 khi mat khau hien tai sai', async () => {
+  const app = buildApp();
+  const loginRes = await request(app).post('/api/auth/login').send({ username: 'officer01', password: 'changeme' });
+  const token = loginRes.body.token;
+
+  const res = await request(app)
+    .post('/api/auth/change-password')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ currentPassword: 'sai-mat-khau', newPassword: 'MatKhauMoi789' });
+  assert.equal(res.status, 400);
+});
+
+test('POST /api/auth/login: khoa tai khoan sau 5 lan sai mat khau lien tiep, lan thu 6 bi tu choi du dung mat khau', async () => {
+  const app = buildApp();
+  for (let i = 0; i < 5; i += 1) {
+    const res = await request(app).post('/api/auth/login').send({ username: 'officer01', password: 'sai-mat-khau' });
+    assert.equal(res.status, 401);
+  }
+  const res = await request(app).post('/api/auth/login').send({ username: 'officer01', password: 'changeme' });
+  assert.equal(res.status, 401);
+  assert.match(res.body.error, /tam khoa/);
 });
 
 test('POST /api/admin/rebalance: dang nhap dung quyen nhung tu choi 400 khi thieu percent (validate.js qua HTTP that)', async () => {

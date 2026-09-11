@@ -154,8 +154,10 @@ Server chạy tại `http://localhost:3000` (WebSocket dùng chung port qua `ws`
 | `officer01` | OFFICER (đã gán sẵn phụ trách QUAY-01, quầy này được mở sẵn) |
 
 ⚠️ Bảng trên chỉ để tham khảo khi setup local — **không hiển thị trên bất kỳ trang công khai
-nào** (đã bỏ khỏi `login.html`). Bắt buộc đổi mật khẩu thật (bcrypt hash mới, hoặc dùng tab
-"Quản lý Tài khoản" trên Admin Dashboard) trước khi triển khai production — xem `db/schema.sql`.
+nào** (đã bỏ khỏi `login.html`). Vì hash của `changeme` là công khai (nằm sẵn trong
+`db/schema.sql`), cả 4 tài khoản mẫu được đánh dấu `must_change_password = 1` — đăng nhập lần
+đầu vẫn dùng được `changeme` bình thường, nhưng `login.html` sẽ tự hiện form bắt buộc đặt mật
+khẩu riêng (tối thiểu 8 ký tự, có cả chữ và số) trước khi vào được Dashboard — xem mục 6.
 
 ---
 
@@ -304,6 +306,30 @@ ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau
   hổng: tài khoản vừa bị khoá vẫn thao tác được tiếp tối đa 8 giờ bằng token cũ, xem
   `test/authService.test.js`). Khi lên production thật, cân nhắc thay bằng JWT ký/hết hạn chuẩn
   hoặc tích hợp SSO của cơ quan, và thêm HTTPS bắt buộc.
+- **Mật khẩu & chống brute-force** (`src/services/authService.js`,
+  `src/utils/passwordPolicy.js`, `src/migrations/runMigrations.js` hàm
+  `addAccountSecurityFields`): mật khẩu **luôn được băm bằng bcrypt** trước khi lưu, chưa bao giờ
+  lưu dạng thô — nâng cấp này KHÔNG đổi cách băm cũ nên **mọi tài khoản/mật khẩu hiện có vẫn đăng
+  nhập bình thường**, chỉ siết thêm các lớp sau:
+  - Mật khẩu MỚI (tạo tài khoản/đặt lại/tự đổi) bắt buộc tối thiểu 8 ký tự, có cả chữ và số
+    (`passwordPolicy.validatePassword`) — không hồi tố lên mật khẩu cũ đã lưu.
+  - Bcrypt cost nâng từ 10 → 12 cho MỌI hash mới tạo từ giờ (`BCRYPT_COST`) — hash cũ (cost 10)
+    tự chứa số vòng lặp dùng để tạo ra nó nên `bcrypt.compare()` vẫn đọc đúng, không cần rehash.
+  - Khoá tạm 15 phút theo TỪNG TÀI KHOẢN sau 5 lần đăng nhập sai liên tiếp (cột
+    `failed_login_attempts`/`locked_until` trên bảng `staff`) — bổ sung cho rate-limit theo IP
+    sẵn có ở `server.js` (`loginLimiter`), vì rate-limit theo IP không chặn được kẻ tấn công dùng
+    nhiều IP/proxy khác nhau nhắm vào 1 tài khoản cụ thể.
+  - Mỗi lần đăng nhập sai được ghi vào `audit_logs` (action `LOGIN_FAILED`) để giám sát qua tab
+    "Báo cáo & Audit" trên Admin Dashboard.
+  - Admin đặt lại mật khẩu cho nhân viên (`PUT /api/admin/staff/:id/password`) luôn đánh dấu
+    `must_change_password = 1` — nhân viên bắt buộc tự đặt mật khẩu riêng ở lần đăng nhập kế tiếp
+    qua endpoint tự phục vụ mới `POST /api/auth/change-password` (yêu cầu đúng mật khẩu hiện tại).
+  - `app.set('trust proxy', 1)` trong `server.js`: **bắt buộc** khi chạy sau reverse proxy như
+    Render — thiếu dòng này thì `express-rate-limit` và `req.ip` đọc nhầm IP của proxy nội bộ
+    (giống nhau cho mọi người dùng) thay vì IP trình duyệt thật, khiến cả rate-limit theo IP lẫn
+    log đăng nhập sai phía trên vô nghĩa.
+  - Xem `test/authService.test.js` (login/changePassword) và `test/routes.test.js` (khoá tài
+    khoản + đổi mật khẩu qua HTTP that) cho hành vi chi tiết.
 - **Validate input**: `src/utils/validate.js` (`requireInt`/`requireString`, không dùng thư viện
   ngoài như Joi/Zod vì phạm vi còn nhỏ) chặn sớm tham số rõ ràng sai định dạng (thiếu, không phải
   số...) ở route trước khi chạm tới DB — tránh lộ nguyên văn lỗi Postgres thô (VD "invalid input

@@ -45,6 +45,11 @@ CREATE TABLE staff (
   password_hash VARCHAR(255) NOT NULL,
   role          VARCHAR(20) NOT NULL CHECK (role IN ('SUPER_ADMIN','MANAGER','SUPERVISOR','OFFICER')),
   is_active     SMALLINT NOT NULL DEFAULT 1,
+  -- Chong brute-force theo tung tai khoan + bat buoc doi mat khau mac dinh/mat khau Admin
+  -- vua cap lai (xem migration addAccountSecurityFields cho CSDL da ton tai truoc ban nay).
+  failed_login_attempts SMALLINT NOT NULL DEFAULT 0,
+  locked_until  TIMESTAMP,
+  must_change_password SMALLINT NOT NULL DEFAULT 0,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -298,14 +303,17 @@ INSERT INTO form_templates (service_id, form_code, form_name, shelf_name, tray_n
   (3, 'TK-HKD-01', 'Tờ khai đăng ký hộ kinh doanh', 'Kệ C', 'Khay 1', 'Khu Bàn viết C', '/assets/samples/tk-hkd-01.png'),
   ((SELECT id FROM services WHERE code = 'TRICHLUC_HT'), 'TK-TLHT-01', 'Tờ khai yêu cầu cấp bản sao trích lục hộ tịch', 'Kệ A', 'Khay 2', 'Khu Bàn viết A', '/assets/samples/tk-tlht-01.png');
 
--- Tai khoan mau (password cho tat ca: "changeme" - DOI MAT KHAU that truoc khi trien khai production)
+-- Tai khoan mau (password cho tat ca: "changeme" - DOI MAT KHAU that truoc khi trien khai production).
+-- must_change_password = 1: hash cua "changeme" la CONG KHAI (nam san trong file nay), nen ca
+-- 4 tai khoan mau bi bat buoc doi mat khau riêng ngay o lan dang nhap dau tien (man dang nhap
+-- se tu hien form doi mat khau - xem public/js/login.js) - khong the tiep tuc dung "changeme".
 -- Postgres khong co san ham UUID() nhu MySQL (can extension pgcrypto/uuid-ossp) - dung
 -- literal UUID co dinh cho du du 4 tai khoan mau, tranh phu thuoc extension tren managed DB.
-INSERT INTO staff (id, full_name, username, password_hash, role) VALUES
-  ('11111111-1111-4111-8111-111111111111', 'Super Admin', 'superadmin', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPER_ADMIN'),
-  ('22222222-2222-4222-8222-222222222222', 'Trưởng Trung tâm', 'manager01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'MANAGER'),
-  ('33333333-3333-4333-8333-333333333333', 'Cán bộ Điều phối', 'supervisor01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPERVISOR'),
-  ('44444444-4444-4444-8444-444444444444', 'Cán bộ Quầy 01', 'officer01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'OFFICER');
+INSERT INTO staff (id, full_name, username, password_hash, role, must_change_password) VALUES
+  ('11111111-1111-4111-8111-111111111111', 'Super Admin', 'superadmin', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPER_ADMIN', 1),
+  ('22222222-2222-4222-8222-222222222222', 'Trưởng Trung tâm', 'manager01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'MANAGER', 1),
+  ('33333333-3333-4333-8333-333333333333', 'Cán bộ Điều phối', 'supervisor01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'SUPERVISOR', 1),
+  ('44444444-4444-4444-8444-444444444444', 'Cán bộ Quầy 01', 'officer01', '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru', 'OFFICER', 1);
 
 -- Gan Can bo Quay 01 phu trach QUAY-01 va mo quay san cho demo
 UPDATE counters SET officer_id = (SELECT id FROM staff WHERE username = 'officer01'), status = 'OPEN'

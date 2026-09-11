@@ -4,6 +4,7 @@ const staffRepo = require('../repositories/staffRepository');
 const auditRepo = require('../repositories/auditRepository');
 const authService = require('./authService');
 const { newId } = require('../utils/uuid');
+const { validatePassword, BCRYPT_COST } = require('../utils/passwordPolicy');
 
 // Admin (SUPER_ADMIN) chi duoc tao tai khoan cho 3 vai tro van hanh nay qua man Quan ly Tai
 // khoan - SUPER_ADMIN khac duoc khoi tao san trong db/schema.sql (seed data), khong tao them qua UI.
@@ -16,13 +17,13 @@ async function listStaff() {
 async function createStaff({ fullName, username, password, role }, adminId) {
   if (!fullName || !username || !password || !role) throw new Error('Vui long nhap day du ho ten, ten dang nhap, mat khau va vai tro.');
   if (!MANAGEABLE_ROLES.includes(role)) throw new Error('Vai tro khong hop le.');
-  if (password.length < 6) throw new Error('Mat khau can toi thieu 6 ky tu.');
+  validatePassword(password);
 
   return withTransaction(async (client) => {
     const existing = await staffRepo.findByUsername(client, username.trim());
     if (existing) throw new Error('Ten dang nhap da ton tai.');
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
     const created = await staffRepo.create(client, {
       id: newId(), fullName: fullName.trim(), username: username.trim(), passwordHash, role
     });
@@ -57,13 +58,15 @@ async function setStaffActive(staffId, isActive, adminId) {
 }
 
 async function resetStaffPassword(staffId, newPassword, adminId) {
-  if (!newPassword || newPassword.length < 6) throw new Error('Mat khau can toi thieu 6 ky tu.');
+  validatePassword(newPassword);
   await withTransaction(async (client) => {
     const target = await staffRepo.findById(client, staffId);
     if (!target) throw new Error('Tai khoan khong ton tai.');
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    await staffRepo.updatePassword(client, staffId, passwordHash);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
+    // mustChangePassword = true: day la mat khau TAM do Admin dat ho, bat buoc chinh chu
+    // tai khoan phai tu doi lai mat khau rieng cua minh o lan dang nhap ke tiep.
+    await staffRepo.updatePassword(client, staffId, passwordHash, true);
     await auditRepo.insertLog(client, {
       adminId, action: 'STAFF_PASSWORD_RESET', targetType: 'STAFF', targetId: staffId, reason: 'Dat lai mat khau'
     });

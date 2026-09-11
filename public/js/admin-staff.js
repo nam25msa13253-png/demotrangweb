@@ -11,6 +11,8 @@ async function loadStaffTab() {
           <b>${s.full_name}</b> <span class="text-muted">(${s.username})</span>
           <span class="badge badge-blue">${ROLE_LABELS[s.role] || s.role}</span>
           <span class="badge ${s.is_active ? 'badge-green' : 'badge-gray'}">${s.is_active ? 'Đang hoạt động' : 'Đã khóa'}</span>
+          ${s.is_locked ? '<span class="badge badge-red" title="Tạm khóa 15 phút do đăng nhập sai nhiều lần liên tiếp">🔒 Tạm khóa (sai mật khẩu)</span>' : ''}
+          ${s.must_change_password ? '<span class="badge badge-yellow" title="Đang dùng mật khẩu tạm, hệ thống sẽ bắt đổi ở lần đăng nhập tới">⏳ Chờ đổi mật khẩu</span>' : ''}
           ${s.role === 'OFFICER' ? (s.counter_code ? `<span class="badge badge-yellow">Quầy ${s.counter_code}</span>` : '<span class="text-muted" style="font-size:0.85rem;">Chưa gán quầy — vào tab Điều phối để gán</span>') : ''}
         </div>
         <div class="flex gap-8">
@@ -59,10 +61,11 @@ async function toggleStaffActive(staffId, isActive) {
 }
 
 async function resetStaffPassword(staffId) {
-  const password = await ConfirmDialog.prompt('Nhập mật khẩu mới (tối thiểu 6 ký tự):', '');
+  const password = await ConfirmDialog.prompt('Nhập mật khẩu tạm mới (tối thiểu 8 ký tự, có cả chữ và số):', '');
   if (!password) return;
   try {
     await ApiClient.put(`/api/admin/staff/${staffId}/password`, { password });
-    showToast('Đã đặt lại mật khẩu.', 'success');
+    showToast('Đã đặt lại mật khẩu. Tài khoản sẽ phải tự đổi mật khẩu riêng ở lần đăng nhập tới.', 'success');
+    loadStaffTab();
   } catch (err) { showToast(err.message, 'error'); }
 }

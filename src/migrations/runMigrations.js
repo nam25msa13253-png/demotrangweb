@@ -101,12 +101,31 @@ async function addWifiConfig() {
   `);
 }
 
+async function addAccountSecurityFields() {
+  // Khoa tam thoi tai khoan sau nhieu lan dang nhap sai lien tiep (chong brute-force theo
+  // tung tai khoan) + bat buoc doi mat khau (mat khau Admin vua cap lai, hoac mat khau mau
+  // "changeme" trong seed data - xem UPDATE ben duoi). Xem src/services/authService.js.
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS failed_login_attempts SMALLINT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS must_change_password SMALLINT NOT NULL DEFAULT 0`);
+
+  // Bat ky tai khoan nao (ke ca tai khoan Admin tu tao sau nay, khong chi 4 tai khoan mau)
+  // dang dung DUNG hash cua mat khau mau "changeme" trong db/schema.sql deu bi danh dau bat
+  // buoc doi mat khau ngay lan dang nhap ke tiep - hash nay la CONG KHAI (nam san trong repo)
+  // nen tai khoan nao con dung se co nguy co bi chiem quyen ngay lap tuc neu khong doi.
+  await pool.query(
+    `UPDATE staff SET must_change_password = 1
+     WHERE password_hash = '$2a$10$0vx4PhQh65zFRiLNrFPC7eV9UuJi4EfrKzrW.PbhFBXPGQ4frwUru'`
+  );
+}
+
 async function run() {
   await addSoftDeleteToCounters();
   await addTrichLucHoTichService();
   await addStaffSessionsTable();
   await addActiveCountersView();
   await addWifiConfig();
+  await addAccountSecurityFields();
 }
 
 module.exports = { run, addSoftDeleteToCounters };

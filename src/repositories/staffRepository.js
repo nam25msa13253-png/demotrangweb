@@ -4,6 +4,8 @@
 async function listAll(client) {
   const { rows } = await client.query(
     `SELECT s.id, s.full_name, s.username, s.role, s.is_active, s.created_at,
+            s.must_change_password,
+            (s.locked_until IS NOT NULL AND s.locked_until > CURRENT_TIMESTAMP) AS is_locked,
             c.code AS counter_code, c.name AS counter_name
      FROM staff s
      LEFT JOIN counters c ON c.officer_id = s.id
@@ -51,8 +53,11 @@ async function updateActive(client, id, isActive) {
   return rows[0];
 }
 
-async function updatePassword(client, id, passwordHash) {
-  await client.query('UPDATE staff SET password_hash = ? WHERE id = ?', [passwordHash, id]);
+async function updatePassword(client, id, passwordHash, mustChangePassword = false) {
+  await client.query(
+    'UPDATE staff SET password_hash = ?, must_change_password = ?, failed_login_attempts = 0, locked_until = NULL WHERE id = ?',
+    [passwordHash, mustChangePassword ? 1 : 0, id]
+  );
 }
 
 module.exports = { listAll, findById, findByUsername, listByRole, create, updateActive, updatePassword };

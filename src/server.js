@@ -33,6 +33,12 @@ const ALLOWED_ORIGINS = [
 ];
 
 const app = express();
+// Render (va moi PaaS dung reverse proxy) dat request qua 1 proxy noi bo - neu khong khai bao
+// dong nay, req.ip va express-rate-limit deu doc nham IP cua proxy (giong nhau cho MOI nguoi
+// dung) thay vi IP that cua trinh duyet, khien gioi han dang nhap theo IP (loginLimiter ben
+// duoi) va log dang nhap sai (authService.login) vo nghia. `1` = tin 1 tang proxy ngay truoc
+// server (dung voi ha tang cua Render).
+app.set('trust proxy', 1);
 app.use(helmet({
   // Bat CSP voi script-src chi cho 'self' + CDN duy nhat dang dung (cdnjs, de tai thu vien
   // qrcodejs trong chatbot.js). Truoc day CSP bi tat hoan toan vi cac trang public/ dung
