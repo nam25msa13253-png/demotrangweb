@@ -13,22 +13,42 @@ const ApiClient = (() => {
     localStorage.removeItem('sq_staff');
   }
 
+  // Render free tier: server "ngu" sau ~15 phut khong co request, khi "thuc day" (cold start)
+  // vai giay dau co the tra ve 429/502/503 truoc khi container khoi dong xong hoan toan - dac
+  // biet de gap khi 1 trang goi NHIEU request cung luc (VD loadMonitor() dung Promise.all goi
+  // 3 API mot luc). Cac ma loi nay la TAM THOI (khong phai loi logic/du lieu) nen tu dong thu
+  // lai vai lan truoc khi bao loi that su cho nguoi dung, thay vi bat nguoi dung phai tu bam
+  // tai lai trang.
+  const TRANSIENT_RETRY_DELAYS_MS = [1000, 2000, 3000];
+
+  function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
   async function request(method, url, body) {
     const headers = { 'Content-Type': 'application/json' };
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    const res = await fetch(url, {
-      method, headers, body: body !== undefined ? JSON.stringify(body) : undefined
-    });
-    let data = null;
-    try { data = await res.json(); } catch (e) { /* no body */ }
+    let attempt = 0;
+    for (;;) {
+      const res = await fetch(url, {
+        method, headers, body: body !== undefined ? JSON.stringify(body) : undefined
+      });
 
-    if (!res.ok) {
-      if (res.status === 401) { clearSession(); }
-      throw new Error((data && data.error) || `Loi HTTP ${res.status}`);
+      if (!res.ok && [429, 502, 503].includes(res.status) && attempt < TRANSIENT_RETRY_DELAYS_MS.length) {
+        await delay(TRANSIENT_RETRY_DELAYS_MS[attempt]);
+        attempt += 1;
+        continue;
+      }
+
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* no body */ }
+
+      if (!res.ok) {
+        if (res.status === 401) { clearSession(); }
+        throw new Error((data && data.error) || `Loi HTTP ${res.status}`);
+      }
+      return data;
     }
-    return data;
   }
 
   return {
