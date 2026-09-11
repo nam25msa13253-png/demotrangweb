@@ -9,9 +9,25 @@ async function addSoftDeleteToCounters() {
   // tham chieu duoc toi dong quay). Quay bi xoa duoc an khoi moi truy van danh sach dang hoat dong.
   await pool.query(`ALTER TABLE counters ADD COLUMN IF NOT EXISTS is_deleted SMALLINT NOT NULL DEFAULT 0`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_counters_is_deleted ON counters (is_deleted)`);
-  // Ma quay luu tru khi soft-delete (VD "QUAY-06-DEL-1735000000000") dai hon 20 ky tu -
-  // mo rong cot de tranh loi "value too long". An toan, khong can rewrite bang.
-  await pool.query(`ALTER TABLE counters ALTER COLUMN code TYPE VARCHAR(60)`);
+
+  // Ma quay luu tru khi soft-delete (VD "QUAY-06-DEL-1735000000000") dai hon 20 ky tu - mo
+  // rong cot de tranh loi "value too long". CHI chay ALTER neu cot chua du rong: tu khi co
+  // VIEW active_counters (SELECT * FROM counters, xem addActiveCountersView ben duoi),
+  // Postgres KHONG cho phep ALTER COLUMN TYPE tren 1 cot dang co view phu thuoc - DU LA DOI
+  // SANG DUNG KIEU NO DANG CO (bao gio cung bi tu choi voi loi "cannot alter type of a column
+  // used by a view or rule"). Neu chay ALTER nay vo dieu kien moi lan khoi dong nhu truoc day,
+  // lan dau (khi view chua ton tai) van thanh cong, nhung TU LAN KHOI DONG THU 2 tro di (sau
+  // khi view da duoc tao) se LUON LUON CRASH server ngay tu buoc migrate - day la loi that da
+  // xay ra tren Render (server khong bao gio khoi dong lai duoc sau lan deploy dau tien tao
+  // xong view).
+  const { rows } = await pool.query(
+    `SELECT character_maximum_length FROM information_schema.columns
+     WHERE table_name = 'counters' AND column_name = 'code'`
+  );
+  const currentLength = rows[0] && rows[0].character_maximum_length;
+  if (currentLength === null || currentLength === undefined || currentLength < 60) {
+    await pool.query(`ALTER TABLE counters ALTER COLUMN code TYPE VARCHAR(60)`);
+  }
 }
 
 async function addTrichLucHoTichService() {
@@ -93,4 +109,4 @@ async function run() {
   await addWifiConfig();
 }
 
-module.exports = { run };
+module.exports = { run, addSoftDeleteToCounters };

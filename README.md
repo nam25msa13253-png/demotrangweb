@@ -316,6 +316,15 @@ ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau
   cố quầy đã xoá vẫn rò rỉ ra Heatmap/Bảng LED do quên filter (đã từng xảy ra và được sửa ở 4 chỗ
   khác nhau). Các thao tác GHI (INSERT/UPDATE/SELECT...FOR UPDATE trong transaction nghiệp vụ)
   vẫn dùng bảng gốc `counters` như cũ trong `counterRepository.js`.
+  ⚠️ **Bài học thật đã xảy ra trên Render**: thêm VIEW `SELECT * FROM counters` khiến Postgres
+  từ chối tuyệt đối mọi `ALTER TABLE counters ALTER COLUMN ... TYPE ...` sau đó (dù đổi sang
+  đúng kiểu cột đang có) — `addSoftDeleteToCounters()` từng chạy `ALTER COLUMN code TYPE
+  VARCHAR(60)` vô điều kiện mỗi lần khởi động, nên ngay sau khi VIEW được tạo lần đầu, **mọi lần
+  khởi động lại sau đó đều crash** (kể cả free tier ngủ rồi thức dậy). Đã sửa bằng cách chỉ chạy
+  `ALTER` khi cột thật sự chưa đủ rộng (đọc `information_schema.columns` trước) — xem
+  `test/runMigrations.test.js`. Rút kinh nghiệm: **mọi migration cộng thêm trong
+  `runMigrations.js` phải kiểm tra trạng thái hiện tại trước khi ALTER**, không chỉ dựa vào
+  `IF NOT EXISTS`/`ON CONFLICT` cho CREATE/INSERT.
 - **Gửi SMS/Zalo thật**: các điểm gọi trong `src/services/queueEngine/` đang là log console (đánh dấu
   `TODO-tich-hop`) — cắm Gateway SMS/Zalo Notification OA thật vào đúng các điểm này.
 - **Web Speech API**: giọng đọc phụ thuộc trình duyệt/OS có cài voice `vi-VN` hay không. Nếu
@@ -343,6 +352,7 @@ CI (`.github/workflows/ci.yml`) tự chạy `npm test` mỗi lần push/tạo Pu
 | `test/counterService.test.js` | Mở/Đóng/Tạm dừng quầy, đổi lĩnh vực, xoá quầy (san tải vé) |
 | `test/routes.test.js` | Tích hợp qua HTTP thật (`supertest`): middleware `authenticate`/`requirePermission` (401/403), `validate.js` (400), login/logout, 404 JSON |
 | `test/utils.test.js` | `uuid.js`, `json.js`, `validate.js` |
+| `test/runMigrations.test.js` | `addSoftDeleteToCounters` (chỉ ALTER COLUMN khi thật sự cần - bug từng làm crash production, xem mục 6) |
 
 `supertest` (devDependency) dựng 1 Express app ngay trong test, gắn route module thật của dự
 án — khác các file test khác (chỉ gọi thẳng hàm JS của service), `routes.test.js` xác nhận
