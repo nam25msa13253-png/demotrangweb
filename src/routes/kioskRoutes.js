@@ -120,7 +120,7 @@ router.get('/counters/status', async (req, res) => {
       FROM active_counters c
       JOIN service_fields sf ON sf.id = c.field_id
       LEFT JOIN tickets t ON t.counter_id = c.id AND t.status IN ('QUEUED','CALLING','PROCESSING')
-      GROUP BY c.id, sf.name ORDER BY c.code ASC
+      GROUP BY c.id, c.code, c.name, c.status, sf.name ORDER BY c.code ASC
     `);
     res.json(rows);
   } catch (err) {
