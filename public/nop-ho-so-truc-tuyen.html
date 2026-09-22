@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nộp hồ sơ trực tuyến - Một Cửa Thông Minh</title>
+<link rel="stylesheet" href="css/common.css?v=4" />
+<link rel="stylesheet" href="css/form-guide.css?v=1" />
+<link rel="stylesheet" href="css/guide-pages.css?v=1" />
+<link rel="icon" href="assets/logoKiosk-icon-transparent.png" type="image/png" />
+</head>
+<body>
+<div class="container guide-wrap">
+
+  <section class="page-hero">
+    <h1>💻 Nộp hồ sơ qua mạng (Cổng dịch vụ công)</h1>
+    <p id="intro">Đang tải hướng dẫn...</p>
+  </section>
+
+  <div class="dvc-warning">
+    <b>Lưu ý về độ tin cậy:</b> hướng dẫn này tổng hợp từ các trang chính thống (xem mục <a href="#sources">Nguồn</a>) vào ngày 20/09/2026.
+    Giao diện Cổng dịch vụ công có thể thay đổi. Chỗ nào ghi <span class="badge-status PARTIAL">Chưa chắc chắn</span> hoặc
+    <span class="badge-status UNVERIFIED">Chưa xác thực</span> là phần chưa có nguồn xác nhận đầy đủ — hãy hỏi cán bộ.
+  </div>
+
+  <div class="card">
+    <h2>Trước khi bắt đầu, bạn cần</h2>
+    <div id="prereq"></div>
+  </div>
+
+  <div class="card">
+    <h2>Các bước nộp hồ sơ</h2>
+    <div id="steps"></div>
+    <button type="button" class="btn btn-outline no-print" id="printBtn">🖨️ In hướng dẫn</button>
+  </div>
+
+  <div class="card">
+    <h2>⚠️ Lỗi và lưu ý thường gặp</h2>
+    <div id="problems"></div>
+  </div>
+
+  <div class="card unverified-card">
+    <h2>❓ Những điều CHƯA xác thực được</h2>
+    <p>Tôi không có nguồn chính thống xác nhận các điều dưới đây nên không tự suy đoán. Hãy hỏi cán bộ hoặc gọi tổng đài của Cổng dịch vụ công.</p>
+    <ul id="unverified" class="big-list"></ul>
+  </div>
+
+  <div class="card support-box">
+    <h2>📞 Cần hỗ trợ?</h2>
+    <div id="support"></div>
+    <p><a class="btn btn-primary btn-lg" href="huong-dan-dien-mau.html" style="display:inline-block;">📝 Xem cách điền tờ khai giấy</a></p>
+  </div>
+
+  <div class="card" id="sources">
+    <h2>Nguồn đối chiếu (cho cán bộ Trung tâm)</h2>
+    <ul id="sourceList" class="source-list"></ul>
+  </div>
+
+</div>
+
+<script src="js/apiClient.js"></script>
+<script src="js/header.js"></script>
+<script src="js/chatbot.js?v=6"></script>
+<script src="js/nop-ho-so-truc-tuyen.js?v=1"></script>
+</body>
+</html>

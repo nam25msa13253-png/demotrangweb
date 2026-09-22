@@ -49,18 +49,31 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      'script-src': ["'self'", 'https://cdnjs.cloudflare.com']
+      'script-src': ["'self'", 'https://cdnjs.cloudflare.com'],
+      // Dich vu Wi-Fi cuc bo tren may Kiosk (wifi-local-service, cong 5000) - trinh duyet goi thang
+      // vao do de doc mang Wi-Fi THAT. Truoc day thieu dong nay nen CSP (default-src 'self') chan
+      // hoan toan cac loi goi nay: the QR Wi-Fi tu may Kiosk chua bao gio hien duoc tren ban chay that.
+      'connect-src': ["'self'", 'http://localhost:5000', 'http://127.0.0.1:5000']
     }
   }
 }));
-app.use(cors({
-  origin(origin, callback) {
-    // Khong co Origin header (goi truc tiep bang curl/Postman, health check cua Render...)
-    // van duoc cho qua - CORS von chi ap dung cho request tu trinh duyet.
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    callback(new Error('CORS: Nguon goc (origin) nay khong duoc phep truy cap API.'));
-  }
-}));
+// Trinh duyet GUI header Origin ca voi request POST/PUT CUNG NGUON (trang tinh va API cung 1
+// server), nen "same-origin khong bi CORS chan" chi dung khi Origin nam trong ALLOWED_ORIGINS.
+// Truoc day chay o cong khac (VD 3100) hoac mo Kiosk qua IP mang LAN (http://192.168.x.x:3000)
+// thi moi thao tac ghi (lay so, dang nhap...) deu bi chan voi loi 500. Cho qua them moi Origin
+// co CUNG host voi header Host cua chinh request nay (cung nguon that su), va tra 403 ro rang
+// (thay vi 500) cho nguon la.
+function isSameHostOrigin(req, origin) {
+  try { return new URL(origin).host === req.headers.host; } catch (e) { return false; }
+}
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin || ALLOWED_ORIGINS.includes(origin) || isSameHostOrigin(req, origin)) return next();
+  res.status(403).json({ error: 'CORS: Nguon goc (origin) nay khong duoc phep truy cap API.' });
+});
+// Khong co Origin header (curl/Postman, health check cua Render...) van duoc cho qua - CORS
+// von chi ap dung cho request tu trinh duyet. Nguon la da bi chan o middleware tren.
+app.use(cors({ origin: true }));
 app.use(express.json());
 
 // Chong brute-force dang nhap: toi da 10 lan thu/15 phut cho moi IP tren dung route dang
@@ -73,6 +86,19 @@ const loginLimiter = rateLimit({
   message: { error: 'Ban thu dang nhap qua nhieu lan, vui long thu lai sau it phut.' }
 });
 app.use('/api/auth/login', loginLimiter);
+
+// Lay so Kiosk khong con hoi ho ten nen khong co gi ngan mot nguoi (hoac script) rut lien tuc
+// nhieu STT ao lam day hang doi. Gioi han theo IP: toi da 30 STT / 10 phut - du cho 1 may Kiosk
+// dung chung 1 IP dong nguoi, nhung du chan spam. Khi trien khai that nen chi cho phep IP cua
+// may Kiosk goi API nay (xem docs/KIEN-NGHI-LAY-SO-KHONG-NHAP-TEN.md).
+const ticketLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Ban lay so qua nhieu lan trong thoi gian ngan, vui long cho it phut hoac nho nhan vien ho tro.' }
+});
+app.post('/api/kiosk/tickets', ticketLimiter);
 
 // Luu y thu tu: cac prefix CU THE hon (/api/auth, /api/kiosk, /api/admin, /api/display,
 // /api/health) phai duoc dang ky TRUOC '/api' (counterRoutes) - Express khop app.use()
@@ -115,7 +141,7 @@ runMigrations.run()
     authService.startExpiredSessionCleanup();
     server.listen(PORT, () => {
       console.log(`Smart Queue System dang chay tai http://localhost:${PORT}`);
-      console.log(`  - Kiosk:   http://localhost:${PORT}/kiosk.html`);
+      console.log(`  - Kiosk:   http://localhost:${PORT}/  (chon thu tuc -> kiosk-checklist.html)`);
       console.log(`  - Counter: http://localhost:${PORT}/counter.html`);
       console.log(`  - Display: http://localhost:${PORT}/display.html`);
       console.log(`  - Admin:   http://localhost:${PORT}/admin.html`);

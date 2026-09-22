@@ -102,11 +102,97 @@ test('POST /api/kiosk/tickets: tu choi 400 kem thong bao than thien khi thieu se
   assert.match(res.body.error, /serviceId/);
 });
 
-test('POST /api/kiosk/tickets: tu choi 400 khi thieu ho ten', async () => {
+test('POST /api/kiosk/tickets: KHONG bat buoc ho ten - cap ve thanh cong voi citizenName/phone = null', async () => {
+  serviceRepo.findServiceById = async () => ({
+    id: 1, name: 'Khai sinh', required_docs: [{ code: 'CCCD', name: 'CCCD', mandatory: true }]
+  });
+  const queueEngine = require('../src/services/queueEngine');
+  let received;
+  queueEngine.createTicket = async (args) => {
+    received = args;
+    return { ticket: { id: 't1', ticket_number: 'A-101' }, counter: { name: 'Quay 01' } };
+  };
   const app = buildApp();
-  const res = await request(app).post('/api/kiosk/tickets').send({ serviceId: 1 });
-  assert.equal(res.status, 400);
-  assert.match(res.body.error, /Ho ten/);
+  const res = await request(app).post('/api/kiosk/tickets').send({ serviceId: 1, confirmedDocCodes: ['CCCD'] });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.status, 'QUEUED');
+  assert.equal(received.citizenName, null);
+  assert.equal(received.phone, null);
+});
+
+test('POST /api/kiosk/tickets: ten/SDT gui len (tuy chon) duoc trim va cat do dai', async () => {
+  serviceRepo.findServiceById = async () => ({ id: 1, name: 'X', required_docs: [] });
+  const queueEngine = require('../src/services/queueEngine');
+  let received;
+  queueEngine.createTicket = async (args) => { received = args; return { ticket: {}, counter: {} }; };
+  const app = buildApp();
+  await request(app).post('/api/kiosk/tickets').send({ serviceId: 1, citizenName: `  ${'A'.repeat(300)}  `, phone: '   ' });
+  assert.equal(received.citizenName.length, 150);
+  assert.equal(received.phone, null);
+});
+
+test('GET /api/kiosk/tickets/:id/status: id khong phai UUID -> 404 (khong cham DB)', async () => {
+  const app = buildApp();
+  const res = await request(app).get('/api/kiosk/tickets/abc/status');
+  assert.equal(res.status, 404);
+});
+
+test('GET /api/kiosk/tickets/:id/status: chi tra thong tin cong khai, khong lo ten/SDT/token', async () => {
+  const ticketRepo = require('../src/repositories/ticketRepository');
+  ticketRepo.getTrackingInfo = async () => ({
+    id: '11111111-1111-4111-8111-111111111111', ticket_number: 'A-105', status: 'QUEUED', is_priority: 0,
+    counter_name: 'Quầy 01', service_name: 'Khai sinh', sla_minutes: 15,
+    citizen_name: 'BI MAT', phone: '0900000000', reentry_qr_token: 'secret',
+    aheadCount: 2, activeCount: 1, avgSeconds: 300
+  });
+  const app = buildApp();
+  const res = await request(app).get('/api/kiosk/tickets/11111111-1111-4111-8111-111111111111/status');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ticketNumber, 'A-105');
+  assert.equal(res.body.aheadCount, 2);
+  assert.equal(res.body.estimatedWaitMinutes, 15); // (2 truoc + 1 dang phuc vu) x 5 phut
+  const raw = JSON.stringify(res.body);
+  assert.ok(!raw.includes('BI MAT') && !raw.includes('0900000000') && !raw.includes('secret'));
+});
+
+test('GET /api/kiosk/services/:id/form-guide: 404 than thien khi thu tuc chua co huong dan', async () => {
+  serviceRepo.findServiceById = async () => ({ id: 9, name: 'Khac', required_docs: [] });
+  const formRepo = require('../src/repositories/formTemplateRepository');
+  formRepo.findByServiceId = async () => null;
+  const app = buildApp();
+  const res = await request(app).get('/api/kiosk/services/9/form-guide');
+  assert.equal(res.status, 404);
+});
+
+test('GET form-guide + checklist: tra huong dan tung o va danh dau giay to co huong dan dien', async () => {
+  serviceRepo.findServiceById = async () => ({
+    id: 1, name: 'Khai sinh', fee_amount: 0, sla_minutes: 15,
+    required_docs: [
+      { code: 'CCCD', name: 'CCCD', mandatory: true },
+      { code: 'TOKHAI_KS', name: 'To khai', mandatory: true }
+    ]
+  });
+  const formRepo = require('../src/repositories/formTemplateRepository');
+  formRepo.findByServiceId = async () => ({
+    id: 1, form_code: 'TK-KS-01', form_name: 'To khai khai sinh', shelf_name: 'Ke A', tray_number: 'Khay 1', desk_area: 'Ban A',
+    fill_guide: { docCode: 'TOKHAI_KS', intro: 'x', fields: [{ label: 'Ho ten', how: 'In hoa', example: 'A' }], mistakes: [], after: [] }
+  });
+  const app = buildApp();
+
+  const guide = await request(app).get('/api/kiosk/services/1/form-guide');
+  assert.equal(guide.status, 200);
+  assert.equal(guide.body.guide.fields[0].label, 'Ho ten');
+  assert.ok(guide.body.generalRules.length > 0);
+  assert.ok(guide.body.docHints.some((h) => h.code === 'CCCD'));
+  assert.equal(guide.body.form.fill_guide, undefined); // khong lap lai noi dung guide trong form
+
+  const checklist = await request(app).get('/api/kiosk/services/1/checklist');
+  assert.equal(checklist.status, 200);
+  assert.equal(checklist.body.hasFillGuide, true);
+  assert.equal(checklist.body.requiredDocs.find((d) => d.code === 'TOKHAI_KS').hasFillGuide, true);
+  assert.equal(checklist.body.requiredDocs.find((d) => d.code === 'CCCD').hasFillGuide, false);
+  assert.ok(checklist.body.requiredDocs.find((d) => d.code === 'CCCD').hint);
+  assert.equal(checklist.body.formTemplate.fill_guide, undefined);
 });
 
 test('GET /api/kiosk/services: tra ve 200 va danh sach thu tuc tu serviceRepo', async () => {
@@ -222,4 +308,46 @@ test('GET /khong-ton-tai: 404 dang JSON cho request API (khong phai trang HTML m
   const res = await request(app).get('/api/khong-ton-tai');
   assert.equal(res.status, 404);
   assert.equal(res.body.error, 'Khong tim thay endpoint.');
+});
+
+test('POST /api/kiosk/tickets: ngoai gio lam viec -> 200 status CLOSED kem thong bao + gio mo cua, KHONG cap so', async () => {
+  serviceRepo.findServiceById = async () => ({ id: 1, name: 'Khai sinh', required_docs: [] });
+  const kioskHours = require('../src/services/kioskHours');
+  kioskHours.getStatus = async () => kioskHours.evaluate(
+    { enforced: true, openTime: '07:30', closeTime: '17:00', workingDays: '1,2,3,4,5' }, new Date('2026-09-25T13:00:00Z')
+  );
+  const queueEngine = require('../src/services/queueEngine');
+  let created = false;
+  queueEngine.createTicket = async () => { created = true; return { ticket: {}, counter: {} }; };
+  const app = buildApp();
+  const res = await request(app).post('/api/kiosk/tickets').send({ serviceId: 1, confirmedDocCodes: [] });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, 'CLOSED');
+  assert.match(res.body.message, /Thứ Hai, 28\/09\/2026/);
+  assert.equal(res.body.opensAt.time, '07:30');
+  assert.equal(created, false);
+});
+
+test('POST /api/kiosk/tickets: khong doc duoc cau hinh gio (loi DB) -> khong khoa cap so (fail-open)', async () => {
+  serviceRepo.findServiceById = async () => ({ id: 1, name: 'X', required_docs: [] });
+  const kioskHours = require('../src/services/kioskHours');
+  kioskHours.getStatus = async () => { throw new Error('Tham so cau hinh khong ton tai'); };
+  const queueEngine = require('../src/services/queueEngine');
+  queueEngine.createTicket = async () => ({ ticket: { id: 't' }, counter: {} });
+  const app = buildApp();
+  const res = await request(app).post('/api/kiosk/tickets').send({ serviceId: 1, confirmedDocCodes: [] });
+  assert.equal(res.status, 201);
+});
+
+test('GET /api/kiosk/hours: tra trang thai cong khai (dong cua + thong bao)', async () => {
+  const kioskHours = require('../src/services/kioskHours');
+  kioskHours.getStatus = async () => kioskHours.evaluate(
+    { enforced: true, openTime: '07:30', closeTime: '17:00', workingDays: '1,2,3,4,5' }, new Date('2026-09-20T03:00:00Z')
+  );
+  const app = buildApp();
+  const res = await request(app).get('/api/kiosk/hours');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.open, false);
+  assert.equal(res.body.enforced, true);
+  assert.match(res.body.message, /Thứ Hai/);
 });

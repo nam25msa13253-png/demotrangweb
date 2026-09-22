@@ -34,6 +34,7 @@ async function priorityInject({ serviceId, citizenName, phone, priorityReasonCod
       if (!counter) throw new Error('Khong co quay nao dang mo cho linh vuc nay.');
     }
 
+    await ticketRepo.lockFieldForNumbering(client, service.field_id);
     const countToday = await ticketRepo.countTodayByField(client, service.field_id);
     const ticketNumber = `${service.ticket_prefix}-${100 + countToday + 1}`;
 

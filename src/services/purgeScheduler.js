@@ -5,6 +5,19 @@ const counterRepo = require('../repositories/counterRepository');
 const auditRepo = require('../repositories/auditRepository');
 const wsHub = require('../websocket/wsHub');
 
+// EOD_PURGE_HOUR la GIO VIET NAM (17h = 17:00 tai Trung tam), khong phu thuoc mui gio cua may
+// chu: Render chay UTC nen `new Date().getHours()` truoc day tra gio UTC - "17h" thuc ra roi vao
+// 00:00 dem Viet Nam va vao dung gio lam viec thi khong bao gio chay purge.
+const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
+function getVietnamClock(date = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: VN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23'
+    }).formatToParts(date).map((p) => [p.type, p.value])
+  );
+  return { hour: Number(parts.hour), dateKey: `${parts.year}-${parts.month}-${parts.day}` };
+}
+
 let lastEodPurgeDate = null; // ISO date string, dam bao Batch Purge chi chay 1 lan / ngay
 
 // Max Ticket Lifetime: quet don lien tuc cac ve QUEUED/CALLING ton tai qua lau (vd vang mat lien tuc bi bo quen).
@@ -38,10 +51,9 @@ async function sweepMaxLifetime() {
 // End-of-Day Batch Purge: 17:00 chuyen toan bo ve QUEUED/CALLING con sot lai sang EXPIRED_EOD.
 async function runEodPurgeIfDue() {
   const purgeHour = await configService.get('EOD_PURGE_HOUR');
-  const now = new Date();
-  const todayKey = now.toISOString().slice(0, 10);
+  const { hour: nowHour, dateKey: todayKey } = getVietnamClock();
 
-  if (now.getHours() < purgeHour) return;
+  if (nowHour < purgeHour) return;
   if (lastEodPurgeDate === todayKey) return; // da chay hom nay roi
 
   const { totalUnserved, ticketIds } = await withTransaction(async (client) => {
@@ -79,4 +91,4 @@ function start() {
   console.log('[purgeScheduler] Da khoi dong (chu ky kiem tra 60s).');
 }
 
-module.exports = { start, sweepMaxLifetime, runEodPurgeIfDue };
+module.exports = { start, sweepMaxLifetime, runEodPurgeIfDue, getVietnamClock };

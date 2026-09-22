@@ -70,7 +70,7 @@ function renderBoard(counters) {
       <div class="led-card ${calling ? 'calling' : ''}">
         <div class="counter-name">${c.name}</div>
         <div class="ticket-num">${label}</div>
-        <div class="status-line">${c.citizen_name ? c.citizen_name : ''} ${c.ticket_status ? `• ${c.ticket_status}` : ''}</div>
+        <div class="status-line">${c.ticket_status ? (c.ticket_status === 'CALLING' ? 'Đang gọi' : c.ticket_status === 'PROCESSING' ? 'Đang phục vụ' : '') : ''}</div>
       </div>`;
   }).join('');
 }

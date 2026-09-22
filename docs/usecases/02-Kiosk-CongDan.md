@@ -175,20 +175,20 @@ buộc, hệ thống từ chối cấp số ngay từ bước này.
 
 **Validate on form:**
 - `serviceId` bắt buộc, phải là số nguyên hợp lệ (`requireInt`).
-- `citizenName` (họ tên) bắt buộc, không rỗng (`requireString`).
-- `phone` không bắt buộc.
+- `citizenName` (họ tên) và `phone` **không bắt buộc** — Kiosk không hỏi tên/SĐT (xem `docs/KIEN-NGHI-LAY-SO-KHONG-NHAP-TEN.md`); nếu client vẫn gửi thì được trim, cắt tối đa 150/20 ký tự, rỗng → `NULL`. Số thứ tự là định danh duy nhất của vé.
+- Giới hạn tốc độ: tối đa 30 lượt lấy số / 10 phút / IP (chống rút số ảo).
 - `confirmedDocCodes` (mảng mã giấy tờ đã tick) được đối chiếu với `required_docs` có `mandatory = true` của thủ tục — thiếu bất kỳ mã bắt buộc nào đều bị từ chối.
 
 **Post-condition:**
-- *Thành công (đủ hồ sơ + có quầy):* tạo 1 dòng `tickets` trạng thái `QUEUED`, gán `counter_id` theo Least Queue Depth, sinh `ticket_number` theo tiền tố lĩnh vực (VD `A-101`); trả HTTP 201 `{ status: 'QUEUED', ticket, ... }`; frontend hiển thị số thứ tự + vị trí chờ, broadcast realtime tới `display.html`/`counter.html` qua WebSocket.
+- *Thành công (đủ hồ sơ + có quầy):* tạo 1 dòng `tickets` trạng thái `QUEUED`, gán `counter_id` theo Least Queue Depth, sinh `ticket_number` theo tiền tố lĩnh vực (VD `A-101`); trả HTTP 201 `{ status: 'QUEUED', ticket, ... }`; frontend hiển thị số thứ tự + số người chờ phía trước + thời gian chờ ước tính + mã QR mở trang theo dõi `theo-doi.html?t=<ticketId>` (xem UC theo dõi vé bên dưới), broadcast realtime tới `display.html`/`counter.html` qua WebSocket.
 - *Thất bại — thiếu hồ sơ:* trả HTTP 200 nhưng `status: 'REJECTED'` kèm danh sách `missing` (mã giấy tờ còn thiếu) + `formTemplate` để công dân bổ sung; **không** tạo vé nào.
 - *Thất bại — không có quầy:* HTTP 409 `NO_COUNTER_AVAILABLE`; không tạo vé.
-- *Thất bại — dữ liệu không hợp lệ:* HTTP 400 (thiếu `serviceId`/`citizenName`, hoặc `serviceId` không tồn tại → 404).
+- *Thất bại — dữ liệu không hợp lệ:* HTTP 400 (thiếu/sai `serviceId`), hoặc `serviceId` không tồn tại → 404; vượt giới hạn tốc độ → 429.
 
 **Basic flow:**
-1. Công dân tick các giấy tờ đã chuẩn bị, nhập họ tên (bắt buộc) và số điện thoại (tùy chọn).
-2. Bấm "Nhận số thứ tự" → frontend gọi `POST /api/kiosk/tickets` với `{ serviceId, citizenName, phone, confirmedDocCodes }`.
-3. Server validate `serviceId`/`citizenName`; tìm `service`.
+1. Công dân tick các giấy tờ đã chuẩn bị (không nhập họ tên/SĐT). Với giấy tờ là tờ khai, có nút "Xem cách điền tờ khai này" (xem UC hướng dẫn điền giấy tờ).
+2. Bấm "Nhận số thứ tự" → frontend gọi `POST /api/kiosk/tickets` với `{ serviceId, confirmedDocCodes }`.
+3. Server validate `serviceId`; tìm `service`.
 4. Tính `mandatoryCodes` (giấy tờ bắt buộc) từ `service.required_docs`; so với `confirmedDocCodes` để tìm `missing`.
 5. Nếu `missing` rỗng → gọi `queueEngine.createTicket()`.
 6. `queueEngine` tìm quầy `OPEN` cùng lĩnh vực có ít vé `QUEUED` nhất (Least Queue Depth), sinh `ticket_number` theo tiền tố lĩnh vực, insert `tickets` (status `QUEUED`).
@@ -196,7 +196,7 @@ buộc, hệ thống từ chối cấp số ngay từ bước này.
 8. Frontend hiển thị màn hình "Đã nhận số" (số thứ tự, quầy dự kiến, số người chờ trước).
 
 **Alternative flow:**
-- **3a.** Thiếu `serviceId` hoặc `citizenName` → HTTP 400, dừng luồng.
+- **3a.** Thiếu/sai `serviceId` → HTTP 400, dừng luồng.
 - **3b.** `serviceId` không tồn tại trong DB → HTTP 404 `Thu tuc khong ton tai.`
 - **4a.** `missing.length > 0` (thiếu giấy tờ bắt buộc) → trả `status: 'REJECTED'` kèm `missing` + `formTemplate`; frontend highlight các mục còn thiếu, **không** tạo vé, công dân có thể quay lại bổ sung và bấm lại.
 - **6a.** Không có quầy `OPEN` nào cùng lĩnh vực → `queueEngine.createTicket()` ném lỗi `NO_COUNTER_AVAILABLE` → HTTP 409; frontend hiển thị "Hiện chưa có quầy phục vụ lĩnh vực này, vui lòng quay lại sau".
@@ -205,9 +205,9 @@ buộc, hệ thống từ chối cấp số ngay từ bước này.
 
 ```mermaid
 flowchart TD
-    A([Bắt đầu]) --> B[Tick giấy tờ đã chuẩn bị + nhập họ tên/SĐT]
+    A([Bắt đầu]) --> B[Tick giấy tờ đã chuẩn bị - không nhập tên/SĐT]
     B --> C[POST /api/kiosk/tickets]
-    C --> D{serviceId + citizenName hợp lệ?}
+    C --> D{serviceId hợp lệ?}
     D -- Không --> Z1[400: thiếu dữ liệu]
     D -- Có --> E{service tồn tại?}
     E -- Không --> Z2[404: thủ tục không tồn tại]
@@ -241,8 +241,8 @@ sequenceDiagram
     participant DB as PostgreSQL (tickets, counters)
     participant WS as wsHub
 
-    CD->>FE: Tick giấy tờ, nhập tên/SĐT, bấm "Nhận số"
-    FE->>API: POST { serviceId, citizenName, phone, confirmedDocCodes }
+    CD->>FE: Tick giấy tờ, bấm "Nhận số" (không nhập tên/SĐT)
+    FE->>API: POST { serviceId, confirmedDocCodes }
     API->>SREPO: findServiceById(serviceId)
     SREPO-->>API: service
     API->>API: Tính missing = mandatoryDocs - confirmedDocCodes
@@ -250,7 +250,7 @@ sequenceDiagram
         API-->>FE: 200 { status: REJECTED, missing, formTemplate }
         FE->>CD: Highlight giấy tờ còn thiếu
     else Đủ giấy tờ
-        API->>QE: createTicket({ serviceId, citizenName, phone })
+        API->>QE: createTicket({ serviceId, citizenName: null, phone: null })
         QE->>DB: SELECT counter OPEN cùng field, ORDER BY vé QUEUED ASC (FOR UPDATE)
         alt Không có quầy OPEN
             QE-->>API: throw NO_COUNTER_AVAILABLE
@@ -539,3 +539,97 @@ sequenceDiagram
         FE->>CD: "Vé của bạn đã quay lại hàng đợi"
     end
 ```
+
+---
+
+## UC-10 — Xem hướng dẫn điền giấy tờ (tờ khai)
+
+**Actor:** Công dân.
+
+**Priority:** Cao (giảm hồ sơ bị trả lại, giảm tải cho cán bộ hỗ trợ).
+
+**Trigger:** Công dân bấm "Xem cách điền tờ khai này" ở bước đối chiếu giấy tờ, hoặc trong hộp thoại "Hướng dẫn Bổ sung Hồ sơ" khi thiếu giấy tờ, hoặc mở trang "Cách điền giấy tờ" trên thanh menu, hoặc hỏi Trợ lý AI ("cách điền tờ khai").
+
+**Precondition:** Thủ tục có bản ghi `form_templates` với cột `fill_guide` (JSONB) khác NULL. Migration `addFormFillGuides` tự nạp nội dung mặc định cho 14 thủ tục từ `src/data/formGuides.js` (chỉ ghi vào dòng còn NULL — nội dung Admin đã sửa không bị ghi đè).
+
+**Validate on form:** `serviceId` trên URL phải là thủ tục tồn tại.
+
+**Post-condition:**
+- *Thành công:* hiển thị tên tờ khai, nơi lấy phôi (kệ/khay/bàn viết), từng ô cần điền (nhãn ô + cách điền + ví dụ **dữ liệu giả**), thanh tiến độ tự đánh dấu, gợi ý giấy tờ đi kèm, lỗi thường gặp, các bước sau khi điền, quy tắc chung; nút "In hướng dẫn" và nút "Đã điền xong → lấy số".
+- *Thủ tục chưa có hướng dẫn:* API trả 404 kèm lời nhắn hỏi cán bộ hỗ trợ; trang hiện thông báo và nút về Trang chủ.
+
+**Basic flow:**
+1. Frontend gọi `GET /api/kiosk/services/:id/form-guide` → `{ service, form, guide, generalRules, docHints }`.
+2. Trang `huong-dan-dien-mau.html` render từng ô; công dân tick từng ô đã điền (chỉ lưu tạm trên trình duyệt, không gửi server).
+3. Bấm "Đã điền xong" → quay về `kiosk-checklist.html?serviceId=` để lấy số.
+
+**Alternative flow:**
+- Không có `serviceId` trên URL → trang hiện danh sách các tờ khai có hướng dẫn (`GET /api/kiosk/form-guides`).
+- Kiosk không thao tác 3 phút → tự về Trang chủ (bảo vệ riêng tư).
+
+**Ghi chú nội dung:** hướng dẫn mang tính tham khảo chung, không thay thế biểu mẫu chính thức; vị trí kệ/khay là giá trị mẫu — Admin cập nhật đúng thực tế qua `PUT /api/admin/form-templates` (trường `fillGuide`, `shelfName`, ...).
+
+---
+
+## UC-11 — Tự theo dõi số thứ tự (không cần tên/SĐT)
+
+**Actor:** Công dân.
+
+**Priority:** Cao (bù đắp việc không thu thập tên/SĐT).
+
+**Trigger:** Sau khi lấy số, công dân quét mã QR trên phiếu (hoặc bấm "Mở trang theo dõi").
+
+**Precondition:** Vé tồn tại; `ticketId` là UUID ngẫu nhiên (đóng vai trò "chìa khóa" — ai giữ được liên kết/QR mới xem được).
+
+**Post-condition:** Trang `theo-doi.html?t=<ticketId>` tự cập nhật mỗi 8 giây: số thứ tự, trạng thái bằng tiếng Việt dễ hiểu (đang chờ / **ĐẾN LƯỢT BẠN** / đang phục vụ / cần bổ sung / hoàn tất / bị hủy / hết hạn), quầy phụ trách, số người phía trước, thời gian chờ ước tính. API `GET /api/kiosk/tickets/:id/status` **chỉ** trả các trường công khai (không có tên, SĐT, mã Re-entry).
+
+**Basic flow:**
+1. API kiểm tra `id` đúng định dạng UUID (sai → 404 ngay, không chạm DB).
+2. `ticketRepository.getTrackingInfo` đếm số vé `QUEUED` đứng trước theo đúng thứ tự gọi của quầy (ưu tiên → `queue_position` → `created_at`) và lấy thời gian xử lý trung bình thực tế trong ngày của quầy.
+3. `ticketTracking.estimateWaitMinutes` = (số người trước + 1 nếu quầy đang phục vụ) × thời gian trung bình (không có dữ liệu → dùng SLA của thủ tục). Đây là **ước tính**, luôn ghi nhãn "ước tính".
+
+**Alternative flow:** Mất mạng tạm thời → trang hiện "Đang kết nối lại..." và thử lại; sau 5 lần thất bại liên tiếp mới báo không tìm thấy vé.
+
+
+---
+
+## UC-12 — Chặn cấp số ngoài giờ làm việc (có công tắc)
+
+**Actor:** Công dân, Hệ thống, Admin (cấu hình).
+
+**Trigger:** Công dân mở Trang chủ/Kiosk, hoặc bấm "Xác nhận & Lấy số thứ tự" ngoài giờ làm việc.
+
+**Precondition:** `KIOSK_HOURS_ENFORCED = 1` (mặc định) và biến môi trường `KIOSK_HOURS_ENFORCED` không đặt `false|0|off|no`.
+
+**Post-condition:**
+- `GET /api/kiosk/hours` → `{ open, enforced, hoursText, message, opensAt }` (công khai). Trang có `data-show-hours-banner="true"` hiện banner khi `open = false`.
+- `POST /api/kiosk/tickets` (sau khi kiểm tra `serviceId` hợp lệ): ngoài giờ → HTTP 200 `{ status: 'CLOSED', message, hoursText, opensAt }`, **không tạo vé**, không kiểm tra giấy tờ. Thông báo nêu lý do (chưa mở cửa / hết giờ / hôm nay không làm việc), giờ làm việc, và ngày giờ mở cửa kế tiếp (hôm nay / ngày mai / thứ, ngày). Kiosk hiện màn hình "Chưa thể lấy số lúc này" và vẫn cho xem cách điền tờ khai.
+- Lấy số của Admin (Chèn lượt ưu tiên) **không bị chặn**.
+
+**Cấu hình (`system_configs`):** `KIOSK_HOURS_ENFORCED` (0/1), `KIOSK_OPEN_TIME`, `KIOSK_CLOSE_TIME` (`HH:MM`, giờ Việt Nam), `KIOSK_WORKING_DAYS` (`1,2,3,4,5`; 1 = Thứ Hai … 7 = Chủ nhật). Nhập sai định dạng, hoặc giờ mở ≥ giờ đóng → bị từ chối khi lưu. Cấu hình hỏng/không đọc được lúc chạy → **không chặn** (fail-open). Giờ mặc định là giá trị mẫu, cần Admin sửa. Hạn chế: chỉ 1 khung giờ/ngày.
+
+---
+
+## UC-13 — Kết nối Wi-Fi bằng mã QR (chatbot + trang `ket-noi-wifi.html`)
+
+**Actor:** Công dân (thường là người lớn tuổi).
+
+**Basic flow:**
+1. Công dân hỏi chatbot "Kết nối Wi-Fi" (hoặc mở trang Wi-Fi). Chatbot trả 3 bước ngắn kèm biểu tượng, rồi hiện thẻ Wi-Fi có mã QR.
+2. Nguồn dữ liệu mạng: ưu tiên `wifi-local-service` trên máy Kiosk (`http://localhost:5000/api/current-wifi`: SSID, mật khẩu, kiểu bảo mật); nếu không gọi được hoặc không đọc được → Wi-Fi Admin cấu hình (`GET /api/kiosk/wifi-qr`).
+3. QR theo chuẩn `WIFI:T:<WPA|WEP|nopass>;S:<ssid>;P:<mật khẩu>;;` (ký tự `\ ; , : "` được escape).
+4. Chatbot gợi ý: "Wi-Fi Android", "Wi-Fi iPhone", "Wi-Fi: điện thoại không quét được" → hướng dẫn từng bước (rule-based, không tốn AI). Trang `ket-noi-wifi.html#android|iphone|manual` có bản chữ to.
+
+**Alternative flow:** Mạng doanh nghiệp/không có mật khẩu đọc được → không hiện QR, chỉ hiện tên mạng + mật khẩu và hướng dẫn nhập tay. Mật khẩu **không** được đưa vào ngữ cảnh gửi cho AI.
+
+**Nguồn & mức xác thực từng bước:** `GET /api/kiosk/wifi-guide`, `src/data/wifiGuide.js`, `docs/HUONG-DAN-DVC-VA-WIFI-NGUON-DOI-CHIEU.md`.
+
+---
+
+## UC-14 — Hướng dẫn nộp hồ sơ trực tuyến (Cổng dịch vụ công quốc gia)
+
+**Actor:** Công dân.
+
+**Basic flow:** Công dân hỏi chatbot "Nộp hồ sơ trực tuyến (DVC)" → chatbot hỏi mức VNeID (1 / 2 / chưa có) → `POST /api/kiosk/dvc/check-vneid` trả thông báo phù hợp + 11 bước rút gọn + liên kết `nop-ho-so-truc-tuyen.html` (trang đầy đủ: điều kiện, các bước, lỗi thường gặp, mục chưa xác thực, hỗ trợ, danh sách nguồn). Dữ liệu ở `GET /api/kiosk/dvc-guide`.
+
+**Quy tắc nội dung:** mỗi bước/lỗi ghi `sources` (URL) và `status` (VERIFIED / PARTIAL / UNVERIFIED); mục VERIFIED bắt buộc có nguồn (kiểm tra bằng `test/guides.test.js`); điều chưa xác thực nằm ở `UNVERIFIED_TOPICS` và được đưa vào chỉ dẫn cho AI để AI nói rõ "chưa xác thực" thay vì đoán.

@@ -10,12 +10,15 @@
 (function () {
   const SUGGESTIONS = [
     'Làm giấy khai sinh cần gì?',
-    'Lệ phí sang tên sổ đỏ bao nhiêu?',
+    'Mấy giờ Trung tâm mở cửa?',
     'Quầy nào đang mở?',
     'Kết nối Wi-Fi',
     'Nộp hồ sơ trực tuyến (DVC)',
+    'Cách điền tờ khai',
     'Quét mã Bổ sung hồ sơ'
   ];
+  // Goi y sau khi hien the Wi-Fi: cho nguoi dan chon cach phu hop voi dien thoai cua ho.
+  const WIFI_FOLLOWUPS = ['Wi-Fi Android', 'Wi-Fi iPhone', 'Wi-Fi: điện thoại không quét được'];
 
   const history = []; // {role: 'user'|'assistant', content: string}
   let isOpen = false;
@@ -33,7 +36,7 @@
   // VNeID, ma Re-entry) truoc khi goi API that, nen dung 1 "hanh dong dang cho tra loi" doc lap
   // voi lich su chat thong thuong.
   let pendingAction = null; // null | 'AWAIT_VNEID_LEVEL' | 'AWAIT_REENTRY_TOKEN'
-  const DVC_KEYWORDS = ['dvc', 'dich vu cong', 'nop truc tuyen', 'vneid', 'nop online', 'nop qua mang'];
+  const DVC_KEYWORDS = ['dvc', 'dich vu cong', 'nop truc tuyen', 'vneid', 'nop online', 'nop qua mang', 'nop ho so truc tuyen', 'ho so truc tuyen', 'nop ho so online', 'nop ho so qua mang', 'nop ho so tren mang'];
   const REENTRY_KEYWORDS = ['bo sung ho so', 'quet ma', 're-entry', 'reentry', 'ma qr', 'quet qr'];
   // Cho phep thoat khoi 1 luong dang cho tra loi (pendingAction) giua chung, vd dang duoc hoi
   // "Muc 1 hay Muc 2" nhung nguoi dung doi y muon hoi chuyen khac - neu khong co loi thoat nay,
@@ -89,11 +92,11 @@
   function clearSuggestions() {
     if (currentSuggestionsRow) { currentSuggestionsRow.remove(); currentSuggestionsRow = null; }
   }
-  function renderSuggestions() {
+  function renderSuggestions(list) {
     clearSuggestions();
     const row = document.createElement('div');
     row.className = 'chatbot-suggestions';
-    row.innerHTML = SUGGESTIONS.map((s) => `<button type="button" class="chatbot-chip">${s}</button>`).join('');
+    row.innerHTML = (list || SUGGESTIONS).map((s) => `<button type="button" class="chatbot-chip">${escapeHtml(s)}</button>`).join('');
     row.querySelectorAll('.chatbot-chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         input.value = chip.textContent;
@@ -125,8 +128,20 @@
       .replace(/>/g, '&gt;');
   }
 
+  // Lien ket [chu](dia-chi): CHI cho phep trang noi bo (ten-trang.html?...) hoac https://...gov.vn,
+  // de noi dung do AI/nguon ngoai tra ve khong the chen lien ket lua dao vao khung chat.
+  // Chuoi da duoc escapeHtml truoc khi vao day nen khong the chen the HTML.
+  const SAFE_LINK = /^(?:[a-z0-9-]+\.html(?:[?#][^\s"'<>]*)?|https:\/\/(?:[a-z0-9-]+\.)*gov\.vn(?:\/[^\s"'<>]*)?)$/i;
+  function linkify(text) {
+    return text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label, url) => (
+      SAFE_LINK.test(url)
+        ? `<a class="chatbot-link" href="${url}"${url.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : ''}>${label}</a>`
+        : m
+    ));
+  }
+
   function formatInline(text) {
-    return text
+    return linkify(text)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>');
   }
@@ -251,17 +266,32 @@
   // khong dieu huong sang trang/modal nao khac. Neu dich vu chua chay tren may nay (VD dang test
   // tren may van phong khong phai Kiosk that), lang le bo qua: cau tra loi huong dan van ban tu
   // bo rule-based/AI o tren van du de nguoi dung tu bam nut "Ket noi Wi-Fi" tren man hinh chinh.
-  async function appendWifiCard() {
-    let data;
+  // Lay thong tin Wi-Fi: UU TIEN Dich vu Wi-Fi cuc bo tren may Kiosk (mang THAT may dang ket noi);
+  // neu khong goi duoc (may khong phai Kiosk / dich vu chua chay) thi dung Wi-Fi do Admin cau hinh
+  // (GET /api/kiosk/wifi-qr, gom ca kieu bao mat WPA/WEP/nopass).
+  async function loadWifiData() {
     try {
       const res = await fetchWithTimeout(WIFI_SERVICE_URL, 2500);
-      data = await res.json();
+      const data = await res.json();
+      // Dich vu chay nhung khong doc duoc Wi-Fi (may dung day mang, loi netsh...) -> dung Wi-Fi Admin cau hinh.
+      if (data && data.success) return { ...data, from: 'local' };
     } catch (err) {
-      // Chi log ra console (khong hien cho nguoi dan) de ky thuat vien con cach kiem tra khi
-      // dich vu Wi-Fi cuc bo khong phan hoi (chua chay, bi chan CORS/Private Network Access,...).
-      console.warn('[chatbot] Khong goi duoc Dich vu Wi-Fi cuc bo (localhost:5000):', err);
-      return;
+      // Chi log ra console (khong hien cho nguoi dan) de ky thuat vien kiem tra khi dich vu cuc bo khong phan hoi.
+      console.warn('[chatbot] Khong goi duoc Dich vu Wi-Fi cuc bo (localhost:5000), dung Wi-Fi Admin cau hinh:', err);
     }
+    try {
+      const res = await fetchWithTimeout('/api/kiosk/wifi-qr', 5000);
+      const cfg = await res.json();
+      if (!res.ok || !cfg.ssid) return null;
+      return { success: true, ssid: cfg.ssid, password: cfg.password || '', qrString: cfg.payload, qrSupported: true, from: 'config' };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async function appendWifiCard() {
+    const data = await loadWifiData();
+    if (!data) return;
 
     const row = document.createElement('div');
     row.className = 'chatbot-row chatbot-row-bot';
@@ -272,6 +302,17 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'chatbot-msg chatbot-msg-bot chatbot-wifi-card';
+
+    if (data.success && data.qrSupported === false) {
+      bubble.innerHTML = `
+        <div class="chatbot-wifi-card-row"><span>Tên mạng (SSID)</span><b>${escapeHtml(data.ssid)}</b></div>
+        <div class="chatbot-wifi-card-row"><span>Mật khẩu</span><b>${escapeHtml(data.password || '(hỏi nhân viên)')}</b></div>
+        <div class="chatbot-wifi-note">Mạng này không tạo được mã QR. Bạn hãy nhập tay theo hướng dẫn bên dưới.</div>`;
+      row.appendChild(bubble);
+      messagesBox.appendChild(row);
+      messagesBox.scrollTop = messagesBox.scrollHeight;
+      return;
+    }
 
     if (!data.success) {
       bubble.innerHTML = `<p class="chatbot-line">${escapeHtml(data.error || 'Máy này hiện không kết nối Wi-Fi nào.')}</p>`;
@@ -289,7 +330,7 @@
         ${data.password ? '<button type="button" class="chatbot-wifi-copy" id="chatbotWifiCopyBtn">Sao chép</button>' : ''}
       </div>
       <div class="chatbot-wifi-qr" id="chatbotWifiQr"></div>
-      <div class="chatbot-wifi-note">Quét mã QR trên bằng camera điện thoại để kết nối Wi-Fi ngay.</div>
+      <div class="chatbot-wifi-note">Mở Máy ảnh (Camera) và đưa vào mã QR ở trên để kết nối Wi-Fi ngay.</div>
     `;
     row.appendChild(bubble);
     messagesBox.appendChild(row);
@@ -317,12 +358,13 @@
   // van ban chung chung) ----
   async function handleDvcRequest() {
     pendingAction = 'AWAIT_VNEID_LEVEL';
-    appendMessage('Để nộp hồ sơ trực tuyến qua Dịch vụ công (DVC), cho tôi biết mức định danh điện tử VNeID hiện tại của bạn là Mức 1 hay Mức 2? (Trả lời "1" hoặc "2")', 'bot');
+    appendMessage('Để nộp hồ sơ qua mạng, bạn cần có tài khoản VNeID (ứng dụng của Bộ Công an trên điện thoại). Tài khoản của bạn là mức 1 hay mức 2? Trả lời "1" hoặc "2". Nếu chưa có, trả lời "chưa có".', 'bot');
   }
   async function handleVneidAnswer(text) {
-    const level = /2/.test(text) ? 2 : /1/.test(text) ? 1 : null;
-    if (!level) {
-      appendMessage('Xin lỗi, vui lòng trả lời "Mức 1" hoặc "Mức 2".', 'bot');
+    const normalized = unaccentVi(text).toLowerCase();
+    const level = /chua|khong co|k co/.test(normalized) ? 0 : /2/.test(text) ? 2 : /1/.test(text) ? 1 : null;
+    if (level === null) {
+      appendMessage('Xin lỗi, bạn vui lòng trả lời "1", "2" hoặc "chưa có".', 'bot');
       return;
     }
     pendingAction = null;
@@ -333,11 +375,12 @@
       });
       const result = await res.json();
       removeTypingIndicator();
-      if (result.eligible) {
-        appendMessage('Bạn đủ điều kiện nộp trực tuyến! Các bước thực hiện:\n' + result.guideSteps.map((s, i) => `${i + 1}. ${s}`).join('\n'), 'bot');
-      } else {
-        appendMessage(result.message, 'bot');
-      }
+      // Luon ghi ro muc chac chan (nguon co xac nhan hay chua) + dan toi trang huong dan co nguon.
+      const parts = [result.message];
+      if (result.eligible) parts.push(result.guideSteps.join('\n'));
+      parts.push('Cổng chính thức: [dichvucong.gov.vn](' + 'https://dichvucong.gov.vn/' + ')');
+      parts.push('[Xem hướng dẫn nộp hồ sơ trực tuyến chi tiết, có nguồn](nop-ho-so-truc-tuyen.html)');
+      appendMessage(parts.join('\n\n'), 'bot');
       renderSuggestions();
     } catch (err) {
       removeTypingIndicator();
@@ -400,7 +443,9 @@
       renderSuggestions();
       return;
     }
-    if (pendingAction && (DVC_KEYWORDS.some((k) => normalizedTrigger.includes(k)) || REENTRY_KEYWORDS.some((k) => normalizedTrigger.includes(k)))) {
+    // Cau hoi ve Wi-Fi luon di theo huong dan Wi-Fi, khong bi tu khoa "ma qr"/"quet ma" keo sang luong Re-entry.
+    const wifiTopic = isWifiQuestion(text);
+    if (pendingAction && !wifiTopic && (DVC_KEYWORDS.some((k) => normalizedTrigger.includes(k)) || REENTRY_KEYWORDS.some((k) => normalizedTrigger.includes(k)))) {
       pendingAction = null;
     }
 
@@ -409,8 +454,8 @@
     if (pendingAction === 'AWAIT_VNEID_LEVEL') return handleVneidAnswer(text);
     if (pendingAction === 'AWAIT_REENTRY_TOKEN') return handleReentryAnswer(text);
 
-    if (DVC_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleDvcRequest();
-    if (REENTRY_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleReentryRequest();
+    if (!wifiTopic && DVC_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleDvcRequest();
+    if (!wifiTopic && REENTRY_KEYWORDS.some((k) => normalizedTrigger.includes(k))) return handleReentryRequest();
 
     isSending = true;
     sendBtn.disabled = true;
@@ -438,7 +483,7 @@
       // Cho the Wi-Fi (neu co) hien xong roi moi hien lai goi y, de dung thu tu: tra loi -> the
       // Wi-Fi -> goi y. Khong await ca chuoi nay o muc sendMessage() de khong lam cham viec mo
       // lai nut gui/xoa typing indicator (xem finally ben duoi).
-      (isWifiQuestion(text) ? appendWifiCard() : Promise.resolve()).then(renderSuggestions);
+      (wifiTopic ? appendWifiCard() : Promise.resolve()).then(() => renderSuggestions(wifiTopic ? WIFI_FOLLOWUPS.concat(SUGGESTIONS.slice(0, 3)) : undefined));
     } catch (err) {
       removeTypingIndicator();
       appendMessage('Không thể kết nối tới trợ lý AI. Vui lòng kiểm tra kết nối mạng.', 'bot');

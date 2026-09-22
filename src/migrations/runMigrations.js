@@ -3,6 +3,7 @@
 // Render da duoc khoi tao tu db/schema.sql (schema.sql chi chay 1 lan qua db/init.js nen
 // khong tu cap nhat CSDL da ton tai - can co buoc migrate rieng nay).
 const { pool } = require('../config/db');
+const { FORM_GUIDES } = require('../data/formGuides');
 
 async function addSoftDeleteToCounters() {
   // Cho phep "xoa" quay ma khong pha vo FK Audit Trail (tickets/ticket_status_history van
@@ -119,6 +120,53 @@ async function addAccountSecurityFields() {
   );
 }
 
+// Huong dan dien giay to cho nguoi dan: them cot fill_guide (JSONB) vao form_templates, tao them
+// to khai cho cac thu tuc chua co, va nap noi dung huong dan mac dinh tu src/data/formGuides.js.
+// CHI ghi vao dong co fill_guide IS NULL - noi dung Admin da tu sua se khong bi ghi de moi lan
+// khoi dong lai server.
+async function addFormFillGuides() {
+  await pool.query(`ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS fill_guide JSONB`);
+
+  for (const g of FORM_GUIDES) {
+    const { rows } = await pool.query(`SELECT id FROM services WHERE code = ?`, [g.serviceCode]);
+    if (!rows[0]) continue;
+
+    await pool.query(
+      `INSERT INTO form_templates (service_id, form_code, form_name, shelf_name, tray_number, desk_area)
+       SELECT ?::int, ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM form_templates WHERE form_code = ? OR service_id = ?)`,
+      [rows[0].id, g.formCode, g.formName, g.shelf, g.tray, g.desk, g.formCode, rows[0].id]
+    );
+
+    const guide = { docCode: g.docCode, intro: g.intro, fields: g.fields, mistakes: g.mistakes, after: g.after };
+    await pool.query(
+      `UPDATE form_templates SET fill_guide = ?::jsonb WHERE service_id = ? AND fill_guide IS NULL`,
+      [JSON.stringify(guide), rows[0].id]
+    );
+  }
+}
+
+// Ve lay so tai Kiosk khong con thu thap ho ten (xem kioskRoutes.js, POST /tickets): cho phep
+// citizen_name NULL va don dep ten dat cho "Khach tai Kiosk" cu de khong con hien tren man hinh.
+async function makeCitizenNameOptional() {
+  await pool.query(`ALTER TABLE tickets ALTER COLUMN citizen_name DROP NOT NULL`);
+  await pool.query(`UPDATE tickets SET citizen_name = NULL WHERE citizen_name = 'Khách tại Kiosk'`);
+}
+
+// Cong tac + gio mo cua Kiosk cap so (xem src/services/kioskHours.js) va kieu bao mat Wi-Fi cho
+// ma QR (WPA/WEP/nopass). Gia tri gio la GIA TRI MAU - Admin can sua theo gio that cua Trung tam.
+async function addKioskHoursAndWifiSecurityConfigs() {
+  await pool.query(`
+    INSERT INTO system_configs (config_key, config_value, value_type, min_bound, max_bound, description) VALUES
+      ('KIOSK_HOURS_ENFORCED', '1', 'NUMBER', 0, 1, 'Chan cap so tai Kiosk ngoai gio lam viec: 1 = chan, 0 = khong chan (dat 0 khi co buoi dao tao ngoai gio)'),
+      ('KIOSK_OPEN_TIME', '07:30', 'STRING', NULL, NULL, 'Gio mo cua (HH:MM, gio Viet Nam). GIA TRI MAU - chua xac thuc voi Trung tam, hay sua cho dung'),
+      ('KIOSK_CLOSE_TIME', '17:00', 'STRING', NULL, NULL, 'Gio dong cua (HH:MM, gio Viet Nam). GIA TRI MAU - chua xac thuc voi Trung tam, hay sua cho dung'),
+      ('KIOSK_WORKING_DAYS', '1,2,3,4,5', 'STRING', NULL, NULL, 'Cac ngay lam viec: 1=Thu Hai ... 7=Chu nhat, cach nhau bang dau phay. GIA TRI MAU - chua xac thuc'),
+      ('WIFI_SECURITY', 'WPA', 'STRING', NULL, NULL, 'Kieu bao mat Wi-Fi de tao ma QR: WPA (WPA/WPA2/WPA3 ca nhan), WEP hoac nopass (mang mo)')
+    ON CONFLICT (config_key) DO NOTHING
+  `);
+}
+
 async function run() {
   await addSoftDeleteToCounters();
   await addTrichLucHoTichService();
@@ -126,6 +174,9 @@ async function run() {
   await addActiveCountersView();
   await addWifiConfig();
   await addAccountSecurityFields();
+  await addFormFillGuides();
+  await makeCitizenNameOptional();
+  await addKioskHoursAndWifiSecurityConfigs();
 }
 
 module.exports = { run, addSoftDeleteToCounters };

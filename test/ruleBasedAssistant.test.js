@@ -77,3 +77,22 @@ test('tryAnswer: chuoi rong tra ve null', async () => {
   assert.equal(await ruleBasedAssistant.tryAnswer(''), null);
   assert.equal(await ruleBasedAssistant.tryAnswer('   '), null);
 });
+
+test('tryAnswer: hoi cach dien to khai -> chi dan nut "Xem cach dien" (uu tien hon tra loi thu tuc)', async () => {
+  const ruleBasedAssistant = require('../src/services/ruleBasedAssistant');
+  const reply = await ruleBasedAssistant.tryAnswer('Cách điền tờ khai khai sinh như thế nào?');
+  assert.match(reply, /Xem cách điền/);
+  assert.match(reply, /gạch ngang/);
+});
+
+test('tryAnswer: hoi co can nhap ten khi lay so -> tra loi khong can', async () => {
+  const ruleBasedAssistant = require('../src/services/ruleBasedAssistant');
+  const reply = await ruleBasedAssistant.tryAnswer('Lấy số có cần nhập tên không?');
+  assert.match(reply, /KHÔNG cần nhập họ tên/);
+});
+
+test('tryAnswer: hoi giay to cua thu tuc van tra ve danh sach giay to (khong bi tu khoa cach dien nuot)', async () => {
+  const ruleBasedAssistant = require('../src/services/ruleBasedAssistant');
+  const reply = await ruleBasedAssistant.tryAnswer('Làm giấy khai sinh cần những giấy tờ gì?');
+  assert.match(reply, /Giấy tờ cần chuẩn bị/);
+});

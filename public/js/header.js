@@ -2,7 +2,7 @@
 // vao moi trang, khong phai lap lai markup logo/nav o tung file HTML.
 (function () {
   // login.html KHONG dung header nay (tu quan ly rieng, xem public/login.html).
-  const PUBLIC_PAGES = ['', 'index.html', 'kiosk-checklist.html', 'huong-dan.html', 'display.html', '404.html'];
+  const PUBLIC_PAGES = ['', 'index.html', 'kiosk-checklist.html', 'huong-dan.html', 'huong-dan-dien-mau.html', 'theo-doi.html', 'ket-noi-wifi.html', 'nop-ho-so-truc-tuyen.html', 'display.html', '404.html'];
   const currentPage = window.location.pathname.split('/').pop();
   const isPublicPage = PUBLIC_PAGES.includes(currentPage);
 
@@ -12,6 +12,9 @@
   const navItems = isPublicPage
     ? [
         { href: 'index.html', label: 'Trang chủ', match: ['', 'index.html'] },
+        { href: 'huong-dan-dien-mau.html', label: 'Cách điền giấy tờ', match: ['huong-dan-dien-mau.html'] },
+        { href: 'nop-ho-so-truc-tuyen.html', label: 'Nộp hồ sơ online', match: ['nop-ho-so-truc-tuyen.html'] },
+        { href: 'ket-noi-wifi.html', label: 'Wi-Fi', match: ['ket-noi-wifi.html'] },
         { href: 'huong-dan.html', label: 'Hướng dẫn', match: ['huong-dan.html'] }
       ]
     : [
@@ -68,6 +71,31 @@
       const nowOn = !document.body.classList.contains('a11y-font-boost');
       applyFontBoost(nowOn);
       localStorage.setItem(FONT_BOOST_KEY, nowOn ? '1' : '0');
+    });
+  }
+  // Banner "Trung tam dang dong cua" (chi trang co <body data-show-hours-banner="true">: Trang chu,
+  // Kiosk). Lay trang thai tu GET /api/kiosk/hours (xem src/services/kioskHours.js). Dung chung
+  // 1 loi goi qua window.KioskHours de kiosk-checklist.js khong phai goi lai. Loi mang -> khong
+  // hien gi (khong bao gio chan nguoi dan chi vi khong doc duoc gio mo cua).
+  window.KioskHours = {
+    _promise: null,
+    load() {
+      if (!this._promise) {
+        this._promise = fetch('/api/kiosk/hours').then((r) => r.json()).catch(() => null);
+      }
+      return this._promise;
+    }
+  };
+  if (document.body.dataset.showHoursBanner === 'true') {
+    window.KioskHours.load().then((hours) => {
+      if (!hours || hours.open) return;
+      const banner = document.createElement('div');
+      banner.className = 'hours-banner';
+      banner.setAttribute('role', 'status');
+      banner.innerHTML = '<span class="hours-banner-icon">🕒</span><div></div>';
+      banner.querySelector('div').textContent = hours.message;
+      const header = document.querySelector('.site-header');
+      if (header) header.insertAdjacentElement('afterend', banner);
     });
   }
 })();

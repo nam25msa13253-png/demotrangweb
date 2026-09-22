@@ -8,6 +8,7 @@
 const express = require('express');
 const cors = require('cors');
 const { exec } = require('child_process');
+const { buildQr } = require('./wifiParse');
 
 const PORT = process.env.WIFI_SERVICE_PORT || 5000;
 const app = express();
@@ -55,6 +56,38 @@ function runCommand(cmd) {
   });
 }
 
+// Bug rieng cua `netsh wlan show interfaces`/`show profile`: VOI SSID co dau tieng Viet, ban
+// than netsh.exe tu lam hong chuoi TRUOC KHI ghi ra stdout - khong lien quan gi den chcp/console
+// codepage (da kiem chung: loi van xay ra du chcp dang la 65001). Co che: SSID goc dung UTF-8
+// dung (VD "ư" = byte C6 B0), nhung netsh doc tung BYTE do nhu 1 ky tu Windows-1252 rieng le
+// (C6 -> "Æ", B0 -> "°") roi moi ghi chuoi 2 ky tu do ra ngoai bang UTF-8 - ket qua Node nhan
+// duoc la "Æ°" thay vi "ư". Ham duoi day dao nguoc dung quy trinh: doi moi ky tu ve lai 1 byte
+// CP1252 tuong ung roi giai ma lai bang UTF-8. Neu chuoi dau vao co bat ky ky tu nao KHONG the
+// bieu dien trong CP1252 (VD "ư"/"ơ" - nghia la da dung dan tu dau, khong bi loi nay) thi giu
+// nguyen, tranh lam hong du lieu dang dung. Chi ap dung an toan cho ASCII thuan (khong doi gi).
+const CP1252_HIGH_TO_CODEPOINT = {
+  0x80: 0x20AC, 0x82: 0x201A, 0x83: 0x0192, 0x84: 0x201E, 0x85: 0x2026, 0x86: 0x2020, 0x87: 0x2021,
+  0x88: 0x02C6, 0x89: 0x2030, 0x8A: 0x0160, 0x8B: 0x2039, 0x8C: 0x0152, 0x8E: 0x017D,
+  0x91: 0x2018, 0x92: 0x2019, 0x93: 0x201C, 0x94: 0x201D, 0x95: 0x2022, 0x96: 0x2013, 0x97: 0x2014,
+  0x98: 0x02DC, 0x99: 0x2122, 0x9A: 0x0161, 0x9B: 0x203A, 0x9C: 0x0153, 0x9E: 0x017E, 0x9F: 0x0178
+};
+const CODEPOINT_TO_CP1252_HIGH = Object.fromEntries(
+  Object.entries(CP1252_HIGH_TO_CODEPOINT).map(([byte, cp]) => [cp, Number(byte)])
+);
+function repairMojibakeIfNeeded(str) {
+  if (!str) return str;
+  const bytes = [];
+  for (const ch of str) {
+    const cp = ch.codePointAt(0);
+    if (cp <= 0xFF) { bytes.push(cp); continue; }
+    const byte = CODEPOINT_TO_CP1252_HIGH[cp];
+    if (byte === undefined) return str; // Ky tu ngoai CP1252 -> chuoi da dung dan, khong dong den
+    bytes.push(byte);
+  }
+  const repaired = Buffer.from(bytes).toString('utf8');
+  return repaired.includes('�') ? str : repaired; // Giai ma UTF-8 that bai -> giu nguyen ban goc
+}
+
 // Tim gia tri cua 1 dong dang "Nhan : Gia tri", khop voi danh sach nhan co the co (ho tro ca
 // Windows tieng Anh lan tieng Viet vi nhan cua netsh phu thuoc ngon ngu he dieu hanh).
 function extractByPrefix(output, prefixes) {
@@ -82,16 +115,22 @@ async function getConnectedSsid() {
   for (const rawLine of output.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (/^SSID\s*:/i.test(line)) {
-      return line.slice(line.indexOf(':') + 1).trim();
+      return repairMojibakeIfNeeded(line.slice(line.indexOf(':') + 1).trim());
     }
   }
   return null;
 }
 
-async function getSavedPassword(ssid) {
+// Doc ca mat khau lan kieu bao mat (dong "Authentication", VD WPA2-Personal / Open) tu cung 1 lan
+// chay netsh - kieu bao mat quyet dinh truong T: cua ma QR (WPA / WEP / nopass), truoc day luon
+// gan cung WPA.
+async function getProfileInfo(ssid) {
   const escapedForShell = ssid.replace(/"/g, '\\"');
   const output = await runCommand(`netsh wlan show profile name="${escapedForShell}" key=clear`);
-  return extractByPrefix(output, ['Key Content', 'Nội dung khóa', 'Noi dung khoa']);
+  return {
+    password: extractByPrefix(output, ['Key Content', 'Nội dung khóa', 'Noi dung khoa']),
+    authentication: extractByPrefix(output, ['Authentication', 'Xác thực', 'Xac thuc'])
+  };
 }
 
 function escapeWifiField(value) {
@@ -111,17 +150,18 @@ app.get('/api/current-wifi', async (req, res) => {
     }
 
     let password = null;
+    let authentication = null;
     try {
-      password = await getSavedPassword(ssid);
+      ({ password, authentication } = await getProfileInfo(ssid));
     } catch (e) {
-      password = null; // Khong doc duoc profile (VD ten SSID chua ky tu la) - van tra ve SSID, coi nhu mang mo
+      password = null; // Khong doc duoc profile (VD ten SSID chua ky tu la) - van tra ve SSID
     }
 
-    const qrString = password
-      ? `WIFI:T:WPA;S:${escapeWifiField(ssid)};P:${escapeWifiField(password)};;`
-      : `WIFI:T:nopass;S:${escapeWifiField(ssid)};;`;
+    // qrString = null khi khong the tao ma dung (mang doanh nghiep 802.1X, hoac mang co bao mat
+    // nhung khong doc duoc mat khau) - trang Kiosk se chuyen sang huong dan nhap tay.
+    const { qrString, security, qrSupported } = buildQr({ ssid, password, authentication });
 
-    res.json({ success: true, ssid, password: password || '', qrString });
+    res.json({ success: true, ssid, password: password || '', security, qrSupported, qrString });
   } catch (err) {
     console.error('[wifi-local-service] Loi khi doc thong tin Wi-Fi:', err.message);
     res.status(500).json({

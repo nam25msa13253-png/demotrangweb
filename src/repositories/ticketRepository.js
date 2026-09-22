@@ -164,7 +164,61 @@ async function countTodayByField(client, fieldId) {
   return Number(rows[0].cnt);
 }
 
+// Khoa co van (advisory lock, tu nha khi COMMIT/ROLLBACK) theo linh vuc: 2 cong dan bam lay so
+// gan nhu cung luc se tuan tu doc `countTodayByField` -> khong bao gio cap trung STT (truoc do
+// 2 giao dich song song cung dem ra 1 gia tri roi cung cap "A-105"). Bat buoc goi trong
+// transaction truoc khi tinh so.
+async function lockFieldForNumbering(client, fieldId) {
+  await client.query('SELECT pg_advisory_xact_lock(7001, ?::int)', [fieldId]);
+}
+
+// Thong tin cong khai de nguoi dan tu theo doi ve cua minh (khong can ten/SDT): vi tri hang doi,
+// quay phu trach, thoi gian xu ly trung binh trong ngay cua quay do. Chi tra cac cot can thiet.
+async function getTrackingInfo(client, ticketId) {
+  const { rows } = await client.query(
+    `SELECT t.id, t.ticket_number, t.status, t.is_priority, t.queue_position, t.created_at, t.counter_id,
+            c.name AS counter_name, s.name AS service_name, s.sla_minutes
+     FROM tickets t
+     JOIN services s ON s.id = t.service_id
+     LEFT JOIN counters c ON c.id = t.counter_id
+     WHERE t.id = ?`,
+    [ticketId]
+  );
+  const t = rows[0];
+  if (!t) return null;
+
+  let aheadCount = 0;
+  let activeCount = 0;
+  let avgSeconds = null;
+  if (t.status === 'QUEUED' && t.counter_id) {
+    const ahead = await client.query(
+      `SELECT COUNT(*) AS cnt FROM tickets o
+       WHERE o.counter_id = ? AND o.status = 'QUEUED' AND o.id <> ?
+         AND (o.is_priority > ? OR (o.is_priority = ? AND (o.queue_position < ?
+              OR (o.queue_position = ? AND o.created_at < ?))))`,
+      [t.counter_id, t.id, t.is_priority, t.is_priority, t.queue_position, t.queue_position, t.created_at]
+    );
+    aheadCount = Number(ahead.rows[0].cnt);
+
+    const active = await client.query(
+      `SELECT COUNT(*) AS cnt FROM tickets WHERE counter_id = ? AND status IN ('CALLING','PROCESSING')`,
+      [t.counter_id]
+    );
+    activeCount = Number(active.rows[0].cnt);
+
+    const avg = await client.query(
+      `SELECT AVG(handling_duration_seconds) AS avg_sec FROM tickets
+       WHERE counter_id = ? AND status = 'COMPLETED' AND completed_at >= CURRENT_DATE
+         AND handling_duration_seconds > 0`,
+      [t.counter_id]
+    );
+    avgSeconds = avg.rows[0].avg_sec === null ? null : Number(avg.rows[0].avg_sec);
+  }
+  return { ...t, aheadCount, activeCount, avgSeconds };
+}
+
 module.exports = {
+  lockFieldForNumbering, getTrackingInfo,
   insertTicket, lockTicketById, findTicketById, findByReentryToken,
   findNextQueuedForCounter, countActiveForCounter, maxQueuePositionForCounter,
   updateStatus, insertHistory, listQueueForCounter, listTailQueued, listActionableForAdmin,

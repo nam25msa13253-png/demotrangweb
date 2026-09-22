@@ -102,6 +102,8 @@ beforeEach(() => {
     return c ? { ...c } : null;
   };
 
+  ticketRepo.lockFieldForNumbering = async () => {};
+
   ticketRepo.countTodayByField = async (_client, fieldId) => state.tickets.filter((t) => {
     const s = state.services.find((sv) => sv.id === t.service_id);
     return s && s.field_id === fieldId;

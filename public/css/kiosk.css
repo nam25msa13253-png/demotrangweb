@@ -41,3 +41,20 @@ body { font-size: 18px; }
 .kiosk-step.done .num { background: var(--color-success); color: #fff; }
 .kiosk-step-line { width: 40px; height: 2px; background: var(--color-border); margin-top: 19px; flex-shrink: 0; }
 .kiosk-step-line.done { background: var(--color-success); }
+
+/* Moi giay to: o tich chon + goi y "cach co giay nay" + nut xem cach dien to khai */
+.checklist-row { margin-bottom: 10px; }
+.checklist-row .checklist-item { margin-bottom: 4px; }
+.doc-hint { font-size: 0.9rem; color: var(--color-text-muted); padding: 2px 14px 4px 46px; line-height: 1.45; }
+.doc-guide-btn { display: inline-block; margin: 4px 0 4px 46px; padding: 10px 16px; font-size: 0.95rem; text-decoration: none; }
+
+/* Phieu STT: thong tin cho + ma QR theo doi tren dien thoai */
+.ticket-wait { font-size: 1.15rem; font-weight: 700; color: var(--color-primary-dark); margin: 14px 0 4px; }
+.ticket-qr-box { margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--color-border); }
+.ticket-qr { display: flex; justify-content: center; margin-bottom: 10px; }
+
+/* Man hinh ngoai gio lam viec */
+.closed-card { text-align: center; padding: 34px 20px; }
+.closed-icon { font-size: 3.5rem; }
+.closed-message { font-size: 1.2rem; line-height: 1.6; max-width: 640px; margin: 10px auto; }
+.closed-opens { font-size: 1.3rem; font-weight: 800; color: var(--color-primary-dark); margin: 12px 0 18px; }

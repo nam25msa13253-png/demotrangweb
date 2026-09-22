@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hướng dẫn điền giấy tờ - Một Cửa Thông Minh</title>
+<link rel="stylesheet" href="css/common.css?v=4" />
+<link rel="stylesheet" href="css/form-guide.css?v=1" />
+<link rel="icon" href="assets/logoKiosk-icon-transparent.png" type="image/png" />
+</head>
+<body>
+
+<div class="container guide-wrap">
+
+  <!-- Man hinh 1: chua chon thu tuc -> danh sach to khai co huong dan -->
+  <section id="screen-list" class="hidden">
+    <section class="page-hero">
+      <h1>Hướng dẫn điền giấy tờ</h1>
+      <p>Chọn thủ tục của bạn để xem cách điền từng ô trên tờ khai, có ví dụ minh họa và các lỗi thường gặp.</p>
+    </section>
+    <div class="grid grid-3" id="formList"></div>
+  </section>
+
+  <!-- Man hinh 2: huong dan dien 1 to khai -->
+  <section id="screen-guide" class="hidden">
+    <div class="guide-toolbar no-print">
+      <a class="btn btn-outline" id="backLink" href="index.html">← Quay lại</a>
+      <button class="btn btn-outline" id="printBtn" type="button">🖨️ In hướng dẫn</button>
+    </div>
+
+    <div class="card guide-head">
+      <div class="eyebrow" id="guideService"></div>
+      <h1 id="guideTitle"></h1>
+      <p id="guideIntro" class="guide-intro"></p>
+      <div class="location-line" id="guideLocation"></div>
+      <div class="demo-note">ℹ️ Các ví dụ bên dưới là <b>dữ liệu giả để minh họa</b>, không phải thông tin của bạn. Hãy điền thông tin thật của mình.</div>
+    </div>
+
+    <div class="card">
+      <h2>✅ Điền theo từng ô</h2>
+      <div class="progress-row no-print">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <span id="progressText" class="progress-text"></span>
+      </div>
+      <p class="text-muted no-print">Điền xong ô nào, bấm vào ô vuông bên cạnh để đánh dấu — giúp bạn không bỏ sót.</p>
+      <ol class="field-list" id="fieldList"></ol>
+    </div>
+
+    <div class="card" id="docHintsCard">
+      <h2>📎 Giấy tờ đi kèm — lấy ở đâu, cần mang gì</h2>
+      <ul class="hint-list" id="docHints"></ul>
+    </div>
+
+    <div class="card mistakes-card">
+      <h2>⚠️ Lỗi thường gặp</h2>
+      <ul id="mistakes"></ul>
+    </div>
+
+    <div class="card after-card">
+      <h2>🏁 Điền xong rồi thì sao?</h2>
+      <ol id="afterSteps"></ol>
+    </div>
+
+    <div class="card">
+      <h2>📌 Quy tắc chung khi điền mọi loại giấy tờ</h2>
+      <div class="rule-grid" id="generalRules"></div>
+    </div>
+
+    <div class="guide-cta no-print">
+      <a class="btn btn-primary btn-lg" id="ticketLink" href="index.html">Đã điền xong — Đến bước lấy số thứ tự →</a>
+    </div>
+  </section>
+
+  <div id="errorBox" class="card hidden empty-state"></div>
+</div>
+
+<script src="js/apiClient.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/header.js"></script>
+<script src="js/chatbot.js?v=6"></script>
+<script src="js/form-guide.js?v=1"></script>
+</body>
+</html>

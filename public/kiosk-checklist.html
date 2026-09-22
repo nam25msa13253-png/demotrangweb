@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Kiosk Tiếp nhận - Một cửa Thông minh</title>
-<link rel="stylesheet" href="css/common.css?v=3" />
-<link rel="stylesheet" href="css/kiosk.css?v=2" />
+<link rel="stylesheet" href="css/common.css?v=4" />
+<link rel="stylesheet" href="css/kiosk.css?v=4" />
 <link rel="icon" href="assets/logoKiosk-icon-transparent.png" type="image/png" />
 </head>
-<body data-show-header-clock="true">
+<body data-show-header-clock="true" data-show-hours-banner="true">
 
 <div class="kiosk-wrap">
 
@@ -24,7 +24,7 @@
   <section id="screen-checklist">
     <div class="card">
       <h2 id="checklistServiceName"></h2>
-      <p class="text-muted">Vui lòng đối chiếu và xác nhận các giấy tờ bạn đang có sẵn:</p>
+      <p class="text-muted">Vui lòng đối chiếu và xác nhận các giấy tờ bạn đang có sẵn. Không cần nhập họ tên hay số điện thoại.</p>
       <div id="checklistItems"></div>
       <div id="checklistResult"></div>
       <div class="step-nav">
@@ -34,13 +34,31 @@
     </div>
   </section>
 
+  <!-- ================= NGOAI GIO LAM VIEC ================= -->
+  <section id="screen-closed" class="hidden">
+    <div class="card closed-card">
+      <div class="closed-icon">🕒</div>
+      <h2>Chưa thể lấy số lúc này</h2>
+      <p id="closedMessage" class="closed-message"></p>
+      <p id="closedOpensAt" class="closed-opens"></p>
+      <a id="closedGuideBtn" class="btn btn-outline btn-lg hidden" href="huong-dan-dien-mau.html">📝 Xem cách điền tờ khai trong lúc chờ</a>
+      <button class="btn btn-primary btn-lg mt-16" data-action="goBackToSearch">Về Trang chủ</button>
+    </div>
+  </section>
+
   <!-- ================= BUOC 3: KET QUA CAP VE ================= -->
   <section id="screen-ticket" class="hidden">
     <div class="card ticket-hero">
       <p>Số thứ tự của bạn</p>
       <div id="ticketNumber" class="ticket-number">A-101</div>
       <p class="mt-16" id="ticketCounterName" style="font-size:1.3rem;font-weight:600;"></p>
+      <p id="ticketWait" class="ticket-wait"></p>
       <p class="text-muted">Vui lòng theo dõi Bảng LED và lắng nghe Loa thông báo</p>
+      <div class="ticket-qr-box">
+        <div id="ticketQr" class="ticket-qr"></div>
+        <p class="text-muted">Quét mã bằng điện thoại để <b>theo dõi số của bạn từ xa</b> — không cần nhập tên hay số điện thoại.<br/>
+          <a id="ticketTrackLink" href="theo-doi.html">Mở trang theo dõi</a></p>
+      </div>
       <button class="btn btn-primary btn-lg mt-24" data-action="goBackToSearch">Hoàn tất</button>
     </div>
   </section>
@@ -61,6 +79,6 @@
 <script src="js/actionDelegate.js"></script>
 <script src="js/kiosk-checklist.js"></script>
 <script src="js/header.js"></script>
-<script src="js/chatbot.js?v=5"></script>
+<script src="js/chatbot.js?v=6"></script>
 </body>
 </html>

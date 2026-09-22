@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/counters', async (req, res) => {
   const { rows } = await pool.query(`
     SELECT c.id AS counter_id, c.code, c.name, c.status,
-      t.ticket_number, t.status AS ticket_status, t.citizen_name
+      t.ticket_number, t.status AS ticket_status
     FROM active_counters c
     LEFT JOIN tickets t ON t.id = c.active_ticket_id
     ORDER BY c.code ASC

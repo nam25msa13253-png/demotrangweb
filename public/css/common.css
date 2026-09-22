@@ -469,3 +469,9 @@ th { color: var(--color-text-muted); font-weight: 600; text-transform: uppercase
   .site-logo { height: 28px; }
   .site-clock { display: none; }
 }
+
+/* Banner thong bao Trung tam dong cua (header.js, data-show-hours-banner) */
+.hours-banner { display: flex; gap: 12px; align-items: flex-start; background: #fffbeb; border-bottom: 2px solid #f59e0b; color: #78350f; padding: 14px 20px; font-size: 1.05rem; line-height: 1.5; font-weight: 600; }
+.hours-banner-icon { font-size: 1.5rem; flex-shrink: 0; }
+
+.chatbot-link { color: var(--color-primary-dark, #1d4ed8); font-weight: 700; text-decoration: underline; }

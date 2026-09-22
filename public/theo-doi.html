@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Theo dõi số thứ tự - Một Cửa Thông Minh</title>
+<link rel="stylesheet" href="css/common.css?v=4" />
+<link rel="stylesheet" href="css/kiosk.css?v=4" />
+<link rel="icon" href="assets/logoKiosk-icon-transparent.png" type="image/png" />
+<style>
+  .track-wrap { max-width: 520px; margin: 0 auto; padding: 24px 16px 60px; }
+  .track-status { font-size: 1.35rem; font-weight: 800; margin: 12px 0 4px; }
+  .track-detail { font-size: 1.05rem; color: var(--color-text-muted); margin: 4px 0; }
+  .track-card.calling { border: 3px solid var(--color-success); background: #f0fdf4; }
+  .track-card.bad { border: 3px solid var(--color-danger); background: #fef2f2; }
+  .track-updated { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="track-wrap">
+  <div class="card ticket-hero track-card" id="trackCard">
+    <p>Số thứ tự của bạn</p>
+    <div id="trackNumber" class="ticket-number">—</div>
+    <div id="trackStatus" class="track-status">Đang tải...</div>
+    <p id="trackCounter" class="track-detail"></p>
+    <p id="trackWait" class="track-detail"></p>
+    <p id="trackService" class="track-detail"></p>
+    <p class="track-updated" id="trackUpdated"></p>
+  </div>
+  <div class="card mt-16">
+    <p class="text-muted" style="margin:0;">Trang này tự cập nhật mỗi vài giây. Bạn <b>không cần nhập tên hay số điện thoại</b> — chỉ cần giữ trang/mã QR này. Khi đến lượt, hãy lắng nghe loa và xem Bảng LED tại Trung tâm.</p>
+  </div>
+</div>
+
+<script src="js/apiClient.js"></script>
+<script src="js/header.js"></script>
+<script src="js/theo-doi.js?v=1"></script>
+</body>
+</html>

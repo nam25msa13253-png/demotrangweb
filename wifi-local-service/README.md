@@ -62,6 +62,24 @@ ngầm**, không cần mở file `.bat` nào nữa.
    tới `run-hidden.vbs` (VD `C:\wifi-local-service\run-hidden.vbs`).
 5. Lưu lại.
 
+## Kiểu bảo mật & mã QR
+
+Dịch vụ đọc thêm dòng **Authentication** của `netsh` (VD `WPA2-Personal`, `Open`) để đặt đúng trường `T:` của
+mã QR (`WPA` cho WPA/WPA2/WPA3 cá nhân, `WEP`, `nopass` cho mạng mở) — trước đây luôn gán cứng `WPA`. Kết quả
+API `/api/current-wifi` có thêm `security` và `qrSupported`:
+
+- Mạng **doanh nghiệp** (802.1X/Enterprise) hoặc mạng có mật khẩu nhưng **không đọc được mật khẩu** →
+  `qrSupported: false`, `qrString: null`: trang Kiosk không hiện mã QR mà hướng dẫn **nhập tay**.
+- Mạng chỉ dùng **WPA3 (SAE)**: vẫn ghi `T:WPA`; **chưa thử trên điện thoại thật** xem máy nào chấp nhận (mạng
+  hỗn hợp WPA2/WPA3 phổ biến nhất thì dùng bình thường).
+- Nhãn của `netsh` phụ thuộc ngôn ngữ Windows; đã hỗ trợ nhãn tiếng Anh và tiếng Việt (`Xác thực`) nhưng bản
+  tiếng Việt **chưa thử trên máy Windows tiếng Việt thật** — nếu không nhận ra kiểu, dịch vụ suy ra từ việc có/không có mật khẩu.
+- Logic tách ở `wifiParse.js` (có test trong `test/wifiQr.test.js` ở thư mục gốc dự án).
+
+Trang web gọi được dịch vụ này nhờ `connect-src http://localhost:5000` trong Content-Security-Policy của server
+chính (`src/server.js`) — **trước đây thiếu dòng này nên CSP chặn hoàn toàn** và mã QR từ máy Kiosk không bao giờ hiện.
+Khi không gọi được (hoặc dịch vụ trả lỗi), chatbot/trang Wi-Fi dùng Wi-Fi Admin cấu hình làm dự phòng.
+
 ## Lưu ý bảo mật
 
 - Dịch vụ chỉ lắng nghe trên `127.0.0.1` (localhost) — không mở ra mạng LAN, máy khác không

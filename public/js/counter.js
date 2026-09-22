@@ -114,7 +114,7 @@ function renderQueue(queue) {
     ? '<div class="empty-state">Hàng đợi trống</div>'
     : waiting.map((t, i) => `
         <div class="conveyor-item ${t.is_priority ? 'priority' : ''}">
-          <span><b>${t.ticket_number}</b> ${t.citizen_name}</span>
+          <span><b>${t.ticket_number}</b>${t.citizen_name ? ` ${t.citizen_name}` : ''}</span>
           <span class="badge ${t.is_priority ? 'badge-yellow' : 'badge-gray'}">${i === 0 ? 'Kế tiếp' : `#${i + 1}`}</span>
         </div>
       `).join('');
@@ -142,7 +142,7 @@ function renderActiveSlot() {
   if (activeTicket.status === 'CALLING') {
     box.innerHTML = `
       <div class="num">${activeTicket.ticket_number}</div>
-      <div>${activeTicket.citizen_name}</div>
+      ${activeTicket.citizen_name ? `<div>${activeTicket.citizen_name}</div>` : ''}
       <div class="timer mt-16" id="countdownDisplay">45s</div>`;
     actions.innerHTML = `
       <button class="btn btn-success" ${actionAttr('acceptTicket')}>✅ Tiếp nhận</button>
@@ -154,7 +154,7 @@ function renderActiveSlot() {
   if (activeTicket.status === 'PROCESSING') {
     box.innerHTML = `
       <div class="num">${activeTicket.ticket_number}</div>
-      <div>${activeTicket.citizen_name}</div>
+      ${activeTicket.citizen_name ? `<div>${activeTicket.citizen_name}</div>` : ''}
       <span class="badge badge-blue mt-16">Đang xử lý</span>`;
     actions.innerHTML = `
       <button class="btn btn-success" ${actionAttr('completeTicket')}>✔️ Hoàn tất</button>

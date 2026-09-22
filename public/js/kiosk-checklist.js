@@ -3,6 +3,15 @@
 // "Tim thu tuc" rieng da bi bo vi trung lap voi tim kiem san co tren Trang chu).
 let currentService = null;
 
+// Noi dung dong tu DB (ten giay to, goi y...) chen vao innerHTML - escape de an toan.
+function esc(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function guideUrl(serviceId) {
+  return `huong-dan-dien-mau.html?serviceId=${encodeURIComponent(serviceId)}`;
+}
+
 function tapFeedback() {
   if (navigator.vibrate) navigator.vibrate(12);
 }
@@ -20,10 +29,10 @@ function updateStepper(name) {
 }
 
 function showScreen(name) {
-  ['checklist', 'ticket'].forEach((s) => {
+  ['checklist', 'ticket', 'closed'].forEach((s) => {
     document.getElementById(`screen-${s}`).classList.toggle('hidden', s !== name);
   });
-  updateStepper(name);
+  updateStepper(name === 'closed' ? 'checklist' : name); // man hinh dong cua van thuoc buoc 2
 }
 
 // Khong con trang "Tim thu tuc" rieng nua - quay lai nghia la ve Trang chu (index.html), noi
@@ -53,11 +62,16 @@ async function loadChecklist(serviceId) {
     const data = await ApiClient.get(`/api/kiosk/services/${serviceId}/checklist`);
     currentService = data;
     document.getElementById('checklistServiceName').textContent = data.service.name;
+    // Moi giay to: o tich chon + goi y "cach co giay nay/can mang gi" + nut xem cach dien neu la to khai.
     document.getElementById('checklistItems').innerHTML = (data.requiredDocs || []).map((d) => `
-      <label class="checklist-item">
-        <input type="checkbox" value="${d.code}" />
-        <span>${d.name}${d.mandatory ? ' <b style="color:var(--color-danger)">*</b>' : ''}</span>
-      </label>
+      <div class="checklist-row">
+        <label class="checklist-item">
+          <input type="checkbox" value="${esc(d.code)}" />
+          <span>${esc(d.name)}${d.mandatory ? ' <b style="color:var(--color-danger)">*</b>' : ''}</span>
+        </label>
+        ${d.hint ? `<div class="doc-hint">💡 ${esc(d.hint)}</div>` : ''}
+        ${d.hasFillGuide ? `<a class="btn btn-outline doc-guide-btn" href="${guideUrl(data.service.id)}">📝 Xem cách điền tờ khai này</a>` : ''}
+      </div>
     `).join('');
     renderChecklistStatus();
     showScreen('checklist');
@@ -102,8 +116,9 @@ async function submitCheckGate() {
   const confirmedDocCodes = Array.from(document.querySelectorAll('#checklistItems input:checked')).map((el) => el.value);
 
   try {
+    // Khong hoi ho ten/SDT: so thu tu la dinh danh duy nhat (xem docs/KIEN-NGHI-LAY-SO-KHONG-NHAP-TEN.md).
     const result = await ApiClient.post('/api/kiosk/tickets', {
-      serviceId: currentService.service.id, citizenName: 'Khách tại Kiosk', phone: '', confirmedDocCodes
+      serviceId: currentService.service.id, confirmedDocCodes
     });
 
     if (result.status === 'REJECTED') {
@@ -111,10 +126,78 @@ async function submitCheckGate() {
       return;
     }
 
+    if (result.status === 'CLOSED') {
+      showClosedScreen(result);
+      return;
+    }
+
     document.getElementById('ticketNumber').textContent = result.ticket.ticket_number;
     document.getElementById('ticketCounterName').textContent = `Vui lòng đến ${result.counter.name}`;
     showScreen('ticket');
+    renderTicketExtras(result.ticket.id);
   } catch (err) { showToast(err.message, 'error'); }
+}
+
+// Ngoai gio lam viec: thong bao ro rang (kem gio mo cua ke tiep) thay vi chi bao loi.
+function showClosedScreen(info) {
+  document.getElementById('closedMessage').textContent = info.message || 'Trung tâm hiện đang đóng cửa.';
+  document.getElementById('closedOpensAt').textContent = info.opensAt
+    ? `Mở cửa lại: ${info.opensAt.weekday}, ${info.opensAt.date} lúc ${info.opensAt.time}` : '';
+  const guideBtn = document.getElementById('closedGuideBtn');
+  guideBtn.classList.toggle('hidden', !(currentService && currentService.hasFillGuide));
+  if (currentService) guideBtn.href = guideUrl(currentService.service.id);
+  showScreen('closed');
+}
+
+// Vao trang luc ngoai gio: bao ngay tren nut, khong bat nguoi dan tich xong roi moi biet.
+window.addEventListener('load', () => {
+  if (!window.KioskHours) return;
+  window.KioskHours.load().then((hours) => {
+    if (!hours || hours.open) return;
+    const btn = document.querySelector('[data-action=submitCheckGate]');
+    if (btn) { btn.textContent = 'Ngoài giờ làm việc — xem thông báo'; }
+  });
+});
+
+// Thu vien QR (qrcodejs, cdnjs da duoc CSP cho phep) - tai 1 lan khi can.
+let qrLibPromise = null;
+function loadQrLibrary() {
+  if (window.QRCode) return Promise.resolve();
+  if (!qrLibPromise) {
+    qrLibPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Khong tai duoc thu vien QR'));
+      document.head.appendChild(script);
+    });
+  }
+  return qrLibPromise;
+}
+
+// Phieu STT: nguoi dan chua nhap ten nen can cach "giu" so cua minh - hien so nguoi cho phia
+// truoc + thoi gian uoc tinh, va ma QR mo trang theo doi tren dien thoai (khong can ten/SDT).
+async function renderTicketExtras(ticketId) {
+  const trackUrl = `${window.location.origin}/theo-doi.html?t=${encodeURIComponent(ticketId)}`;
+  const waitEl = document.getElementById('ticketWait');
+  waitEl.textContent = '';
+  document.getElementById('ticketQr').innerHTML = '';
+  document.getElementById('ticketTrackLink').href = trackUrl;
+
+  try {
+    const info = await ApiClient.get(`/api/kiosk/tickets/${encodeURIComponent(ticketId)}/status`);
+    waitEl.textContent = info.aheadCount === 0
+      ? 'Bạn là người tiếp theo — vui lòng ở gần quầy.'
+      : `Phía trước còn ${info.aheadCount} người • Chờ khoảng ${info.estimatedWaitMinutes} phút (ước tính)`;
+  } catch (err) { /* khong chan viec hien so neu khong lay duoc thong tin cho */ }
+
+  try {
+    await loadQrLibrary();
+    // eslint-disable-next-line no-new
+    new window.QRCode(document.getElementById('ticketQr'), { text: trackUrl, width: 150, height: 150 });
+  } catch (err) {
+    document.getElementById('ticketQr').textContent = ''; // khong co CDN: van con lien ket ben duoi
+  }
 }
 
 function showMissingDocsGuide(result) {
@@ -134,10 +217,10 @@ function showMissingDocsGuide(result) {
   if (form) {
     document.getElementById('formLocationBox').innerHTML = `
       <div class="location-box">
-        <b>📍 Vị trí lấy phôi tờ khai:</b> ${form.shelf_name} → ${form.tray_number} → ${form.desk_area}<br/>
-        ${form.annotated_sample_url ? `<img src="${form.annotated_sample_url}" alt="Mẫu tờ khai" style="max-width:100%;border-radius:8px;margin-top:10px;" onerror="this.style.display='none'"/>` : ''}
-        <div class="mt-16"><b>Mã tờ khai:</b> ${form.form_name}</div>
-      </div>`;
+        <b>📍 Vị trí lấy phôi tờ khai:</b> ${esc(form.shelf_name)} → ${esc(form.tray_number)} → ${esc(form.desk_area)}<br/>
+        <div class="mt-16"><b>Tờ khai:</b> ${esc(form.form_name)}</div>
+      </div>
+      ${currentService.hasFillGuide ? `<a class="btn btn-primary btn-block mt-16" href="${guideUrl(currentService.service.id)}">📝 Xem cách điền tờ khai từng bước</a>` : ''}`;
   } else {
     document.getElementById('formLocationBox').innerHTML = '<p class="text-muted">Vui lòng liên hệ quầy hỗ trợ để được hướng dẫn.</p>';
   }

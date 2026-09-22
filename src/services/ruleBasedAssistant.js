@@ -7,6 +7,7 @@
 const { pool } = require('../config/db');
 const serviceRepo = require('../repositories/serviceRepository');
 const kioskFeatureGuide = require('./kioskFeatureGuide');
+const kioskHours = require('./kioskHours');
 
 // Vietnamese hay go khong dau/co dau lan lon - bo dau + ha chu thuong de so khop dang tin cay
 // hon la yeu cau khop chinh xac tung ky tu.
@@ -22,6 +23,7 @@ function normalize(str) {
 }
 
 const GREETING_PATTERN = /^(xin chao|chao ban|chao|hi|hello|alo)[\s!.?]*$/;
+const HOURS_KEYWORDS = ['gio mo cua', 'gio lam viec', 'may gio mo', 'may gio dong', 'may gio lam', 'thoi gian lam viec', 'dong cua chua', 'da mo cua', 'con mo cua', 'hom nay co lam viec'];
 const COUNTER_KEYWORDS = ['quay nao', 'hang doi', 'cho bao lau', 'may quay', 'quay dang', 'tinh trang quay', 'con cho', 'dang mo quay'];
 
 function formatServiceAnswer(service) {
@@ -81,9 +83,30 @@ async function matchCounterStatus(normalizedMessage) {
   return `Tình trạng quầy hiện tại:\n${lines.join('\n')}`;
 }
 
+// Gio mo cua doc tu cau hinh that (Admin sua duoc), khong tra loi theo gio "cung" trong code.
+async function matchOpeningHours(normalizedMessage) {
+  if (!HOURS_KEYWORDS.some((k) => normalizedMessage.includes(k))) return null;
+  let status;
+  try { status = await kioskHours.getStatus(); } catch (err) { return null; }
+  if (!status.hoursText) {
+    return 'Hiện tôi chưa có thông tin giờ làm việc chính xác của Trung tâm. Vui lòng hỏi cán bộ hỗ trợ hoặc xem thông báo tại quầy.';
+  }
+  if (status.open) return `Trung tâm đang mở cửa. Giờ làm việc: ${status.hoursText}.`;
+  return status.message;
+}
+
+// Mot tu khoa la chuoi (chi can chua chuoi do) hoac mang cac nhom "a|b|c" - TAT CA nhom phai co
+// mat, moi nhom chi can 1 tu bat ky (xem ghi chu dau kioskFeatureGuide.js).
+function keywordMatches(normalizedMessage, k) {
+  if (Array.isArray(k)) {
+    return k.every((group) => group.split('|').some((alt) => normalizedMessage.includes(normalize(alt))));
+  }
+  return normalizedMessage.includes(normalize(k));
+}
+
 function matchKioskFeature(normalizedMessage) {
   for (const f of kioskFeatureGuide.KIOSK_FEATURES) {
-    if (f.keywords.some((k) => normalizedMessage.includes(normalize(k)))) return f.text;
+    if (f.keywords.some((k) => keywordMatches(normalizedMessage, k))) return f.text;
   }
   return null;
 }
@@ -97,6 +120,9 @@ async function tryAnswer(rawMessage) {
   if (GREETING_PATTERN.test(message)) {
     return 'Xin chào! Tôi là trợ lý ảo của Trung tâm Hành chính công. Bạn cần hỏi về thủ tục nào? Bạn có thể hỏi tôi về giấy tờ cần chuẩn bị, lệ phí, thời gian xử lý, hoặc tình trạng quầy/hàng đợi hiện tại.';
   }
+
+  const hoursAnswer = await matchOpeningHours(message);
+  if (hoursAnswer) return hoursAnswer;
 
   const kioskAnswer = matchKioskFeature(message);
   if (kioskAnswer) return kioskAnswer;

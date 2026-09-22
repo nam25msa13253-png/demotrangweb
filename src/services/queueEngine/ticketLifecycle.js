@@ -34,9 +34,9 @@ function clearNoShowTimeout(ticketId) {
   }
 }
 
-// KHONG doc ten cong dan: citizen_name hien chi la ten dat cho ("Khach tai Kiosk", "Cong dan
-// uu tien"...) chu khong phai ten that (he thong khong con thu thap ten/SDT that de bao ve
-// rieng tu, xem [[an PII cong dan tren Admin]]) - doc len se rat ky va vo nghia. Chi doc
+// KHONG doc ten cong dan: Kiosk khong thu thap ho ten (citizen_name la NULL, hoac chi la ten
+// dat cho "Cong dan uu tien" o luong Admin chen luot) - he thong dinh danh nguoi dan chi bang
+// So thu tu de bao ve rieng tu, doc ten len loa cong cong vua ky vua vo nghia. Chi doc
 // So thu tu + thu tuc + quay, dung phong cach loa PA hanh chinh cong thuc te.
 function buildAnnouncement(ticket, service, counter) {
   const alias = service.short_alias || service.name;
@@ -58,6 +58,7 @@ async function createTicket({ serviceId, citizenName, phone }) {
       throw err;
     }
 
+    await ticketRepo.lockFieldForNumbering(client, service.field_id);
     const countToday = await ticketRepo.countTodayByField(client, service.field_id);
     const ticketNumber = `${service.ticket_prefix}-${100 + countToday + 1}`;
     const tailPosition = (await ticketRepo.maxQueuePositionForCounter(client, counter.id)) + 1;

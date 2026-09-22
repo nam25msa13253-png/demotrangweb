@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Trang chủ - Hỗ trợ Tra cứu Thủ tục Hành chính</title>
-<link rel="stylesheet" href="css/common.css?v=3" />
+<link rel="stylesheet" href="css/common.css?v=4" />
 <link rel="icon" href="assets/logoKiosk-icon-transparent.png" type="image/png" />
 <style>
   .category-grid { margin-top: 8px; }
@@ -12,7 +12,7 @@
   .empty-search { text-align: center; padding: 30px; color: var(--color-text-muted); }
 </style>
 </head>
-<body data-chatbot-auto-open="true">
+<body data-chatbot-auto-open="true" data-show-hours-banner="true">
 
 <div class="container">
   <section class="hero-banner">
@@ -34,6 +34,18 @@
 
   <div class="section-heading">
     <div>
+      <div class="eyebrow">Hỗ trợ người dân</div>
+      <h2>Bạn cần giúp gì?</h2>
+    </div>
+  </div>
+  <div class="grid grid-3 support-grid" style="margin-bottom:28px;">
+    <a href="huong-dan-dien-mau.html" class="card-link category-card"><div class="card"><h3>📝 Cách điền giấy tờ</h3><p class="desc">Hướng dẫn điền từng ô của tờ khai, có ví dụ.</p><div class="meta">Xem hướng dẫn →</div></div></a>
+    <a href="nop-ho-so-truc-tuyen.html" class="card-link category-card"><div class="card"><h3>💻 Nộp hồ sơ qua mạng</h3><p class="desc">Các bước nộp hồ sơ trên Cổng dịch vụ công.</p><div class="meta">Xem hướng dẫn →</div></div></a>
+    <a href="ket-noi-wifi.html" class="card-link category-card"><div class="card"><h3>📶 Kết nối Wi-Fi</h3><p class="desc">Quét mã QR, có hướng dẫn cho Android và iPhone.</p><div class="meta">Xem hướng dẫn →</div></div></a>
+  </div>
+
+  <div class="section-heading">
+    <div>
       <div class="eyebrow" id="categoryEyebrow">Danh mục nổi bật</div>
       <h2 id="categoryTitle">Các thủ tục phổ biến</h2>
       <p id="categorySub">Truy cập nhanh các thủ tục hành chính được thực hiện nhiều nhất.</p>
@@ -48,7 +60,7 @@
 </footer>
 
 <script src="js/header.js"></script>
-<script src="js/chatbot.js?v=5"></script>
+<script src="js/chatbot.js?v=6"></script>
 <script src="js/searchSuggest.js"></script>
 <script src="js/index.js"></script>
 </body>

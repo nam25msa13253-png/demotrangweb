@@ -1,0 +1,58 @@
+/* Trang huong-dan-dien-mau.html: huong dan dien to khai tung o (chu to, tuong phan cao, de doc
+   tren man hinh Kiosk cho nguoi lon tuoi). */
+body { font-size: 18px; }
+.guide-wrap { max-width: 900px; margin: 0 auto; padding: 16px 20px 60px; }
+.page-hero { text-align: center; padding: 30px 10px 12px; }
+.page-hero h1 { font-size: 2.2rem; margin-bottom: 8px; }
+.page-hero p { color: var(--color-text-muted); font-size: 1.1rem; }
+
+.guide-toolbar { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.guide-head h1 { font-size: 1.9rem; margin: 6px 0 10px; }
+.guide-intro { font-size: 1.1rem; line-height: 1.55; }
+.location-line { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; margin: 14px 0; }
+.demo-note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; }
+
+.progress-row { display: flex; align-items: center; gap: 12px; margin: 10px 0 6px; }
+.progress-bar { flex: 1; height: 12px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0; background: var(--gradient-brand); transition: width 0.25s ease; }
+.progress-text { font-weight: 700; white-space: nowrap; font-size: 0.95rem; }
+
+.field-list { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-direction: column; gap: 12px; }
+.field-item { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1.5px solid var(--color-border); border-radius: 14px; background: #fff; }
+.field-item.done { background: #f0fdf4; border-color: #bbf7d0; }
+.field-check { margin: 0; padding-top: 4px; }
+.field-check input { width: 28px; height: 28px; cursor: pointer; }
+.field-num { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--gradient-brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+.field-body { flex: 1; min-width: 0; }
+.field-label { font-size: 1.15rem; font-weight: 800; margin-bottom: 4px; }
+.field-how { line-height: 1.55; color: var(--color-text); }
+.field-example { margin-top: 8px; padding: 8px 12px; background: #f1f5f9; border-left: 4px solid var(--color-primary); border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.98rem; overflow-wrap: anywhere; }
+.field-example span { font-family: inherit; font-weight: 800; color: var(--color-primary-dark); margin-right: 6px; font-size: 0.8rem; text-transform: uppercase; }
+
+.hint-list, #mistakes, #afterSteps { line-height: 1.6; padding-left: 22px; }
+.hint-list { list-style: none; padding: 0; }
+.hint-list li { padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.hint-list li:last-child { border-bottom: none; }
+.mistakes-card { border-left: 5px solid var(--color-danger); }
+.after-card { border-left: 5px solid var(--color-success); }
+
+.rule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rule-item { display: flex; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 12px; }
+.rule-item p { margin: 4px 0 0; font-size: 0.95rem; color: var(--color-text-muted); line-height: 1.5; }
+.rule-icon { font-size: 1.8rem; }
+
+.guide-cta { text-align: center; margin-top: 24px; }
+.empty-state { text-align: center; padding: 30px; }
+
+@media (max-width: 640px) {
+  .field-item { flex-wrap: wrap; }
+  .guide-toolbar { flex-direction: column; }
+}
+
+/* In ra giay: bo cac nut/thanh cong cu, giu chu den tren nen trang */
+@media print {
+  .no-print, .site-header, .chatbot-fab, #chatbotRoot { display: none !important; }
+  body { background: #fff; font-size: 14px; }
+  .card { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
+  .field-item { page-break-inside: avoid; }
+}
