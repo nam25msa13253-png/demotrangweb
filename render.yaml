@@ -1,9 +1,14 @@
-databases:
-  - name: smart-queue-db
-    plan: free
-    region: singapore
-    databaseName: smart_queue
-    user: smart_queue_user
+# =====================================================================================
+# Render Blueprint - CHI khai bao web service Node.
+#
+# CO SO DU LIEU KHONG CON NAM TREN RENDER. Postgres goi Free cua Render het han sau 30
+# ngay roi bi xoa kem toan bo du lieu (va goi Free khong ho tro backup) - khong dung duoc
+# cho mot he thong can demo lau dai. Du an chuyen sang Neon (Postgres mien phi, khong het
+# han, khong can the tin dung).
+#
+# Vi vay DATABASE_URL o day la `sync: false`: Render KHONG tu dien nua, ban tu dan chuoi
+# ket noi Neon vao tab Environment cua service sau khi Apply Blueprint.
+# =====================================================================================
 
 services:
   - type: web
@@ -19,11 +24,24 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.11.0
-      # Postgres managed cua chinh Render - tu tao + tu wire connection string vao day,
-      # khong can dien tay host/port/user/password/SSL nhu MySQL ngoai truoc day.
+
+      # Bao Node chay theo gio Viet Nam thay vi UTC. Anh huong truc tiep toi gio chay
+      # Batch Purge cuoi ngay (EOD_PURGE_HOUR) va cac moc thoi gian ghi xuong CSDL.
+      - key: TZ
+        value: Asia/Ho_Chi_Minh
+
+      # Chuoi ket noi Neon. Lay tai bang dieu khien Neon -> Connection string.
+      # Dang: postgresql://<user>:<password>@<host>.neon.tech/<db>?sslmode=require
+      # sync: false = Render hoi ban nhap tay khi Apply, va KHONG ghi de gia tri ban da nhap.
+      # TUYET DOI khong commit chuoi that nay vao git.
       - key: DATABASE_URL
-        fromDatabase:
-          name: smart-queue-db
-          property: connectionString
+        sync: false
+
+      # Neon bat buoc ket noi ma hoa. src/config/db.js chi bat SSL khi bien nay = "true"
+      # hoac khi DATABASE_URL co san (xem ghi chu trong file do).
+      - key: DB_SSL
+        value: "true"
+
+      # API key Google Gemini cho tro ly ao tren Kiosk - nhap tay, khong commit.
       - key: GEMINI_API_KEY
         sync: false

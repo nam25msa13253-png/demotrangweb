@@ -6,7 +6,7 @@ hành tại Trung tâm Hành chính công Một cửa, bám sát 100% tài liệ
 cung cấp (Admin, Bao quát, Chat bot, Hệ thống, Người dùng, Quầy).
 
 **Stack:** Node.js/Express + `ws` (WebSocket, cùng port với HTTP) + **PostgreSQL**
-(`pg`, triển khai qua Postgres managed của Render) ở backend; HTML5/Vanilla
+(`pg`, không dùng ORM; triển khai qua Postgres managed của Neon) ở backend; HTML5/Vanilla
 CSS3/JavaScript ES6+ + Web Speech API ở frontend (không dùng framework FE, không build step).
 
 ---
@@ -27,6 +27,9 @@ smart-queue-system/
 │   ├── utils/
 │   │   ├── uuid.js             # Sinh UUID phía ứng dụng (crypto.randomUUID(), độc lập với DB)
 │   │   └── json.js             # Parse cột JSON (pg đã tự parse JSONB, hàm này chỉ phòng hờ)
+│   ├── data/dvcGuide.js, wifiGuide.js  # Nội dung hướng dẫn nộp hồ sơ online / Wi-Fi: mỗi mục có nguồn (URL) + mức xác thực
+│   ├── services/kioskHours.js  # Giờ mở cửa Kiosk (giờ Việt Nam) + công tắc chặn cấp số ngoài giờ
+│   ├── data/formGuides.js      # Nội dung mặc định "Hướng dẫn điền giấy tờ" (14 tờ khai) + gợi ý giấy tờ đi kèm
 │   ├── repositories/           # Lớp truy vấn DB thuần (ticket/counter/service/audit/form)
 │   ├── migrations/runMigrations.js  # Migration cộng thêm, tự chạy mỗi lần khởi động (idempotent)
 │   ├── services/
@@ -49,6 +52,11 @@ smart-queue-system/
 └── public/                     # Frontend tĩnh (phục vụ qua Express static)
     ├── index.html + js/index.js       # Trang chủ (tra cứu + danh mục thủ tục nổi bật)
     ├── huong-dan.html                 # Hướng dẫn sử dụng (5 bước + FAQ)
+    ├── huong-dan-dien-mau.html + js/form-guide.js + css/form-guide.css
+    │                                    # Hướng dẫn điền giấy tờ/tờ khai từng ô (xem mục 3)
+    ├── theo-doi.html + js/theo-doi.js # Công dân tự theo dõi số thứ tự qua QR (không cần tên/SĐT)
+    ├── ket-noi-wifi.html + js/ket-noi-wifi.js   # QR Wi-Fi + hướng dẫn Android/iPhone/nhập tay (chữ to, cho người lớn tuổi)
+    ├── nop-ho-so-truc-tuyen.html + js/nop-ho-so-truc-tuyen.js  # Hướng dẫn nộp hồ sơ qua Cổng DVC, mỗi mục kèm nguồn + mức xác thực
     ├── kiosk-checklist.html + js/kiosk-checklist.js  # Đối chiếu giấy tờ + Nhận STT
     │                                    (nhận ?serviceId= từ Trang chủ; tìm thủ tục đã gộp
     │                                    thẳng vào ô tìm kiếm của Trang chủ, không còn trang riêng)
@@ -79,48 +87,59 @@ của máy đó qua `netsh` — xem `wifi-local-service/README.md`.
 
 ---
 
-## 2. Triển khai trên Render (Blueprint tự động)
+## 2. Triển khai: web service trên Render + cơ sở dữ liệu trên Neon
 
-Repo đã kèm sẵn [`render.yaml`](render.yaml) khai báo cả web service Node lẫn 1 Postgres
-managed, tự wire `DATABASE_URL` giữa 2 bên — không cần tạo/điền tay bất kỳ connection string
-nào.
+Kiến trúc triển khai gồm **hai nhà cung cấp**:
 
-⚠️ **`render.yaml` đang dùng `plan: free` cho cả web service lẫn Postgres** — phù hợp cho
-demo/đồ án nhưng có các giới hạn cần biết trước khi trình bày như production thật: (1) web
-service free tier tự "ngủ" sau ~15 phút không có traffic, lần truy cập đầu tiên sau đó mất
-khoảng 30-60s để "thức dậy"; (2) Postgres free tier bị xoá tự động sau 90 ngày nếu không nâng
-cấp lên plan trả phí, và giới hạn số connection đồng thời thấp hơn plan trả phí. Muốn chạy ổn
-định 24/7 (không ngủ, không giới hạn thời hạn DB) thì đổi `plan: free` → `plan: starter` (hoặc
-cao hơn) cho cả 2 resource trong `render.yaml` trước khi Apply Blueprint.
+| Thành phần | Nơi chạy | Vì sao |
+|---|---|---|
+| Web service Node + WebSocket | Render (gói Free) | Blueprint sẵn trong [`render.yaml`](render.yaml) |
+| PostgreSQL | [Neon](https://neon.com) (gói Free) | Miễn phí vĩnh viễn, **không hết hạn** |
 
-### Bước 1 — Tạo Blueprint
+⚠️ **Vì sao không dùng Postgres của Render:** gói Free của Render hết hạn sau **30 ngày** kể từ
+lúc tạo, sau đó có 14 ngày ân hạn rồi bị **xoá cùng toàn bộ dữ liệu** — và gói Free **không hỗ
+trợ backup dưới bất kỳ hình thức nào**. Với một hệ thống cần demo đi demo lại thì nó sẽ chết
+đúng lúc cần dùng. Neon gói Free không có giới hạn thời hạn, không cần thẻ tín dụng, dung lượng
+0,5 GB (thừa cho hệ thống này).
 
-1. Đăng nhập [render.com](https://render.com) → **New +** → **Blueprint**.
-2. Chọn repo GitHub của dự án. Render tự đọc `render.yaml`, hiện ra 2 resource: web service
-   `smart-queue-system` + Postgres `smart-queue-db` → bấm **Apply**.
+⚠️ **Web service Render gói Free vẫn tự "ngủ"** sau ~15 phút không có truy cập; lần truy cập
+đầu tiên sau đó mất 30-60 giây để thức dậy. Muốn chạy 24/7 thì đổi `plan: free` →
+`plan: starter` trong `render.yaml`.
 
-### Bước 2 — Điền biến môi trường còn thiếu
+### Bước 1 — Tạo database trên Neon
 
-`DATABASE_URL` được tự động điền (Render tạo Postgres rồi wire connection string nội bộ vào
-thẳng web service, không qua mạng public nên không cần cấu hình SSL/TCP Proxy gì thêm). Bạn chỉ
-cần điền tay:
+1. Đăng ký tại <https://neon.com> → **New Project**.
+2. Chọn region **Singapore** (gần Render Singapore nhất, độ trễ thấp).
+3. Copy **Connection string**, dạng:
+   `postgresql://<user>:<password>@<host>.neon.tech/<db>?sslmode=require`
 
-- `GEMINI_API_KEY` — lấy miễn phí tại <https://aistudio.google.com/apikey> (bỏ trống nếu chưa
-  cần Trợ lý AI, vẫn deploy được — xem mục 3).
-
-### Bước 3 — Khởi tạo schema
-
-Sau khi service deploy xong, chạy schema 1 lần (từ máy bạn, trỏ vào Postgres của Render — lấy
-`DATABASE_URL` ở tab **Environment** của service, hoặc trực tiếp ở tab **Connect** của Postgres
-instance trên Render Dashboard):
+### Bước 2 — Nạp schema từ máy bạn
 
 ```bash
-DATABASE_URL="<External Database URL từ Render>" node db/init.js
+cp .env.example .env
+# Dan chuoi ket noi Neon vao DATABASE_URL trong .env, giu DB_SSL=true
+npm install
+npm run db:init      # tao bang + seed du lieu mau (chay lai nhieu lan deu an toan)
 ```
 
-(Dùng **External Database URL**, không phải Internal, vì bạn đang chạy lệnh này từ máy cá nhân
-chứ không phải từ trong hạ tầng Render — External URL bắt buộc SSL, script đã tự bật SSL khi
-phát hiện `DATABASE_URL`.)
+Nếu đang nâng cấp một database **đã có dữ liệu** từ bản schema cũ, chạy thêm:
+
+```bash
+node db/init.js db/migrations/001_upgrade.sql
+```
+
+### Bước 3 — Tạo Blueprint trên Render
+
+1. Đăng nhập [render.com](https://render.com) → **New +** → **Blueprint** → chọn repo.
+2. Render đọc `render.yaml` và hỏi hai biến (khai báo `sync: false` nên không tự điền):
+   - `DATABASE_URL` — dán chuỗi kết nối Neon ở Bước 1.
+   - `GEMINI_API_KEY` — lấy miễn phí tại <https://aistudio.google.com/apikey> (bỏ trống vẫn
+     deploy được, chỉ mất Trợ lý AI — xem mục 3).
+3. Bấm **Apply**.
+
+Hai biến `DB_SSL=true` và `TZ=Asia/Ho_Chi_Minh` đã khai sẵn giá trị trong `render.yaml`, không
+phải nhập tay. **Đừng xoá chúng:** Neon bắt buộc kết nối mã hoá, còn thiếu `TZ` thì Batch Purge
+cuối ngày chạy lệch 7 tiếng so với giờ làm việc thực tế.
 
 ### Chạy local (tuỳ chọn)
 
@@ -128,7 +147,7 @@ Cần cài PostgreSQL riêng (XAMPP chỉ có MySQL, không dùng được cho b
 
 ```bash
 cp .env.example .env
-# Dien DB_HOST/DB_USER/DB_PASSWORD/DB_NAME theo Postgres local cua ban trong .env
+# Bo trong DATABASE_URL, dien DB_HOST/DB_USER/DB_PASSWORD/DB_NAME, dat DB_SSL=false
 npm install
 npm run db:init      # chay db/schema.sql: tao bang + seed du lieu mau
 npm start             # hoặc: npm run dev (tự reload khi sửa code)
@@ -176,6 +195,37 @@ khẩu riêng (tối thiểu 8 ký tự, có cả chữ và số) trước khi v
   checklist giấy tờ.
 - **Kiosk (`kiosk-checklist.html`)**: chỉ còn 2 bước — đối chiếu checklist giấy tờ (tick chọn) và
   nhận số thứ tự — hiển thị theo dạng stepper 3 nấc (bước 1 "Tìm thủ tục" tính từ Trang chủ).
+- **Lấy số không cần nhập tên/SĐT**: số thứ tự là định danh duy nhất (lý do và phân tích ưu/nhược
+  điểm: `docs/KIEN-NGHI-LAY-SO-KHONG-NHAP-TEN.md`). Phiếu STT hiện số người chờ phía trước + thời
+  gian chờ ước tính + mã QR mở `theo-doi.html?t=<ticketId>` để theo dõi trên điện thoại
+  (`GET /api/kiosk/tickets/:id/status`, chỉ trả trường công khai). Có giới hạn 30 lượt lấy
+  số/10 phút/IP chống rút số ảo.
+- **Hướng dẫn điền giấy tờ (`huong-dan-dien-mau.html`)**: hướng dẫn từng ô của 14 tờ khai (nhãn ô,
+  cách điền, ví dụ dữ liệu giả, lỗi thường gặp, bước sau khi điền), quy tắc chung, gợi ý cách có
+  từng giấy tờ đi kèm. Vào từ nút "Xem cách điền" ở bước đối chiếu giấy tờ, hộp thoại thiếu hồ sơ,
+  menu "Cách điền giấy tờ", hoặc hỏi Trợ lý AI. Nội dung nằm ở cột `form_templates.fill_guide`
+  (JSONB), nạp mặc định từ `src/data/formGuides.js` bởi migration (chỉ vào dòng còn NULL) — Admin
+  sửa qua `PUT /api/admin/form-templates` (trường `fillGuide`, `shelfName`...). Vị trí kệ/khay là
+  giá trị mẫu, cần cập nhật theo thực tế. Hướng dẫn mang tính tham khảo, không thay biểu mẫu chính thức.
+- **Chặn cấp số ngoài giờ + công tắc**: khi ngoài giờ làm việc, `POST /api/kiosk/tickets` trả
+  `{status:'CLOSED', message, opensAt}` (không cấp số); Trang chủ/Kiosk hiện banner và màn hình
+  "Chưa thể lấy số lúc này" kèm ngày/giờ mở cửa kế tiếp. Cấu hình ở tab "Cấu hình Tham số"
+  (bảng `system_configs`): `KIOSK_HOURS_ENFORCED` (1 = chặn, **0 = tắt, dùng cho buổi đào tạo ngoài
+  giờ**), `KIOSK_OPEN_TIME`, `KIOSK_CLOSE_TIME`, `KIOSK_WORKING_DAYS` (1 = Thứ Hai … 7 = Chủ nhật).
+  Biến môi trường `KIOSK_HOURS_ENFORCED=false` **thắng** cấu hình DB (tắt hẳn không cần vào Dashboard).
+  ⚠️ Giờ mở cửa mặc định (07:30–17:00, Thứ Hai–Thứ Sáu) là **giá trị mẫu, chưa xác thực** với Trung tâm — Admin
+  phải sửa cho đúng. Cấu hình lỗi/không đọc được → không chặn (không khóa cứng Trung tâm vì lỗi cấu hình).
+  Trợ lý AI trả lời "mấy giờ mở cửa" theo đúng cấu hình này. Chỉ hỗ trợ 1 khung giờ/ngày (chưa có nghỉ trưa).
+- **Kết nối Wi-Fi bằng QR (`ket-noi-wifi.html` + chatbot)**: mã theo chuẩn `WIFI:T:<WPA|WEP|nopass>;S:…;P:…;;`
+  (ZXing, Android và iOS 11+). Dữ liệu ưu tiên lấy từ `wifi-local-service/` trên máy Kiosk (SSID, mật khẩu,
+  **kiểu bảo mật đọc từ `netsh`**), không có thì dùng Wi-Fi Admin cấu hình (`WIFI_SSID`, `WIFI_PASSWORD`,
+  `WIFI_SECURITY`). Có hướng dẫn từng bước cho Android, iPhone và **nhập tay** (khi máy cũ/camera không quét
+  được), chữ to, biểu tượng minh họa. Chưa có ảnh chụp màn hình thật (giao diện đổi theo hãng máy).
+- **Nộp hồ sơ qua Cổng dịch vụ công (`nop-ho-so-truc-tuyen.html` + chatbot)**: các bước đăng nhập VNeID → tìm
+  thủ tục → điền/tải giấy tờ → thanh toán → theo dõi → nhận kết quả, lỗi thường gặp. **Mỗi mục ghi nguồn (URL)
+  và mức xác thực** (✅ đã đối chiếu / 🟡 một phần / ❌ chưa xác thực); phần chưa xác thực được liệt kê riêng và
+  chatbot được yêu cầu nói rõ "chưa xác thực" thay vì đoán. Bảng đối chiếu cho cán bộ:
+  `docs/HUONG-DAN-DVC-VA-WIFI-NGUON-DOI-CHIEU.md` (sinh từ `src/data/`).
 - **Hướng dẫn (`huong-dan.html`)**: 5 bước sử dụng hệ thống + câu hỏi thường gặp.
 - **Header dùng chung + logo**: `public/js/header.js` tự gắn thanh header (logo
   `assets/logoKiosk-trimmed-transparent.png` qua thẻ `<img>` + menu điều hướng) vào đầu mọi
@@ -228,7 +278,7 @@ khẩu riêng (tối thiểu 8 ký tự, có cả chữ và số) trước khi v
 - **Force Re-balance / Split Queue**: trích X% đuôi hàng đợi của quầy quá tải sang quầy rảnh
   *cùng lĩnh vực* (chặn san tải khác lĩnh vực để tránh người dân di chuyển hỗn loạn).
 - **Emergency Skip** & **Khôi phục vé hủy nhầm**: đều bắt buộc lý do + Audit Log.
-- **End-of-Day Batch Purge**: mỗi phút kiểm tra, đúng giờ cấu hình (`EOD_PURGE_HOUR`, mặc định
+- **End-of-Day Batch Purge**: mỗi phút kiểm tra, đúng giờ cấu hình (`EOD_PURGE_HOUR`, tính theo GIỜ VIỆT NAM bất kể múi giờ máy chủ, mặc định
   17h) sẽ chuyển toàn bộ vé còn `QUEUED`/`CALLING` sang `EXPIRED_EOD`, đóng phiên làm việc.
 - **Race Condition**: mọi thao tác đổi trạng thái vé/quầy đều chạy trong 1 transaction Postgres
   dùng `SELECT ... FOR UPDATE` (xem `src/config/db.js` + `src/repositories/*`).
@@ -243,8 +293,8 @@ trực tiếp qua tab **"Cấu hình Tham số"** của Admin Dashboard — khô
 ## 5. Ghi chú kỹ thuật riêng cho PostgreSQL
 
 Dự án khởi đầu viết cho MySQL/MariaDB (XAMPP) rồi migrate toàn bộ sang PostgreSQL để triển
-khai đơn giản trên Render (Postgres managed, tự wire connection string, không cần host MySQL
-ngoài + cấu hình SSL/TCP Proxy thủ công). Vài điểm đáng chú ý sau migrate:
+khai đơn giản trên hạ tầng managed (không cần host MySQL ngoài + cấu hình SSL/TCP Proxy thủ
+công). Cơ sở dữ liệu hiện đặt trên Neon. Vài điểm đáng chú ý sau migrate:
 
 - **Placeholder `?` được tự dịch sang `$1, $2, ...`** ngay trong `src/config/db.js`
   (`toPgPlaceholders`), nên toàn bộ câu SQL trong `src/repositories/*` giữ nguyên cú pháp `?`
@@ -377,6 +427,10 @@ CI (`.github/workflows/ci.yml`) tự chạy `npm test` mỗi lần push/tạo Pu
 | `test/analyticsService.test.js` | Heatmap, Top Metrics, KPI, Peak Hour |
 | `test/counterService.test.js` | Mở/Đóng/Tạm dừng quầy, đổi lĩnh vực, xoá quầy (san tải vé) |
 | `test/routes.test.js` | Tích hợp qua HTTP thật (`supertest`): middleware `authenticate`/`requirePermission` (401/403), `validate.js` (400), login/logout, 404 JSON |
+| `test/formGuides.test.js` | Toàn vẹn nội dung hướng dẫn điền (khớp seed thủ tục), ước tính thời gian chờ, dữ liệu theo dõi vé không lộ thông tin riêng tư, giờ Việt Nam của EOD Purge |
+| `test/kioskHours.test.js` | Chặn cấp số ngoài giờ: trong/ngoài giờ, cuối tuần, mở lại hôm nay/ngày mai/Thứ Hai, công tắc, cấu hình hỏng, ưu tiên biến môi trường, kiểm tra giá trị cấu hình |
+| `test/wifiQr.test.js` | Chuỗi QR Wi-Fi (escape, WPA/WEP/nopass, mạng doanh nghiệp) ở cả server chính và `wifi-local-service` |
+| `test/guides.test.js` | Mọi mục hướng dẫn Wi-Fi/DVC có nguồn hợp lệ, mục VERIFIED phải có nguồn, chatbot nhận diện đúng ý định, không lộ mật khẩu Wi-Fi cho AI |
 | `test/utils.test.js` | `uuid.js`, `json.js`, `validate.js` |
 | `test/runMigrations.test.js` | `addSoftDeleteToCounters` (chỉ ALTER COLUMN khi thật sự cần - bug từng làm crash production, xem mục 6) |
 
